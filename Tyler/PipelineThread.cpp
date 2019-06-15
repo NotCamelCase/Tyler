@@ -932,7 +932,7 @@ namespace tyler
 #endif
 
                                             // If at least one sample is visible, emit coverage mask for the tile
-                                            if (_mm_movemask_ps(sseEdgeFuncResult) != 0x0)
+                                            if (maskInt != 0x0)
                                             {
                                                 // Quad mask points to the first sample
                                                 CoverageMask mask;
@@ -1206,7 +1206,7 @@ namespace tyler
             pMask->m_QuadMask & g_scQuadMask3);
 
         sseColorMask = _mm_cmpeq_epi32(sseColorMask,
-            _mm_set_epi64x(0x0000000800000004, 0x0000000200000001));
+            _mm_set_epi64x(0x800000004, 0x200000001));
 
         // AND depth mask & coverage mask for quads of fragments
         __m128 sseWriteMask = _mm_and_ps(sseDepthRes, _mm_castsi128_ps(sseColorMask));
