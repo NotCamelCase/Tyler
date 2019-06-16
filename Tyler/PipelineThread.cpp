@@ -692,14 +692,18 @@ namespace tyler
                     const uint8_t edge1TRCorner = (ee1.y >= 0.f) ? ((ee1.x >= 0.f) ? 3u : 2u) : (ee1.x >= 0.f) ? 1u : 0u;
                     const uint8_t edge2TRCorner = (ee2.y >= 0.f) ? ((ee2.x >= 0.f) ? 3u : 2u) : (ee2.x >= 0.f) ? 1u : 0u;
 
-                    // TA corner is one diagonal from TR corner calculated above
-                    const float edge0TACornerXOffset = ee0.x * scBlockTACornerOffsets[3u - edge0TRCorner].x;
-                    const float edge1TACornerXOffset = ee1.x * scBlockTACornerOffsets[3u - edge1TRCorner].x;
-                    const float edge2TACornerXOffset = ee2.x * scBlockTACornerOffsets[3u - edge2TRCorner].x;
+                    const uint8_t edge0TACorner = 3u - edge0TRCorner;
+                    const uint8_t edge1TACorner = 3u - edge1TRCorner;
+                    const uint8_t edge2TACorner = 3u - edge2TRCorner;
 
-                    const float edge0TACornerYOffset = ee0.y * scBlockTACornerOffsets[3u - edge0TRCorner].y;
-                    const float edge1TACornerYOffset = ee1.y * scBlockTACornerOffsets[3u - edge1TRCorner].y;
-                    const float edge2TACornerYOffset = ee2.y * scBlockTACornerOffsets[3u - edge2TRCorner].y;
+                    // TA corner is one diagonal from TR corner calculated above
+                    const float edge0TACornerXOffset = ee0.x * scBlockTACornerOffsets[edge0TACorner].x;
+                    const float edge1TACornerXOffset = ee1.x * scBlockTACornerOffsets[edge1TACorner].x;
+                    const float edge2TACornerXOffset = ee2.x * scBlockTACornerOffsets[edge2TACorner].x;
+
+                    const float edge0TACornerYOffset = ee0.y * scBlockTACornerOffsets[edge0TACorner].y;
+                    const float edge1TACornerYOffset = ee1.y * scBlockTACornerOffsets[edge1TACorner].y;
+                    const float edge2TACornerYOffset = ee2.y * scBlockTACornerOffsets[edge2TACorner].y;
 
                     // Evaluate edge function for the first block within [minBlock, maxBlock] region
                     // once and re-use it by stepping from it within following nested loop
@@ -877,12 +881,12 @@ namespace tyler
                                             __m128 sseEdge0TempRes1 = _mm_mul_ps(sseY4, sseB4Edge0);
                                             __m128 sseEdgeFunc0 = _mm_add_ps(sseC4Edge0,
                                                 _mm_add_ps(sseEdge0TempRes0, sseEdge0TempRes1));
-
+                                            // Evaluate edge equation for edge 1
                                             __m128 sseEdge1TempRes0 = _mm_mul_ps(sseX4, sseA4Edge1);
                                             __m128 sseEdge1TempRes1 = _mm_mul_ps(sseY4, sseB4Edge1);
                                             __m128 sseEdgeFunc1 = _mm_add_ps(sseC4Edge1,
                                                 _mm_add_ps(sseEdge1TempRes0, sseEdge1TempRes1));
-
+                                            // Evaluate edge equation for edge 2
                                             __m128 sseEdge2TempRes0 = _mm_mul_ps(sseX4, sseA4Edge2);
                                             __m128 sseEdge2TempRes1 = _mm_mul_ps(sseY4, sseB4Edge2);
                                             __m128 sseEdgeFunc2 = _mm_add_ps(sseC4Edge2,
