@@ -794,20 +794,22 @@ namespace tyler
                                     float blockPosX = (firstBlockWithinBBoxX + bxx * g_scPixelBlockSize);
                                     float blockPosY = (firstBlockWithinBBoxY + byy * g_scPixelBlockSize);
 
+                                    // Compute E(x, y) = (x * a) + (y * b) c at block origin once
+                                    __m128 sseEdge0FuncAtBlockOrigin = _mm_set1_ps(ee0.z + (ee0.x * blockPosX) + (ee0.y * blockPosY));
+                                    __m128 sseEdge1FuncAtBlockOrigin = _mm_set1_ps(ee1.z + (ee1.x * blockPosX) + (ee1.y * blockPosY));
+                                    __m128 sseEdge2FuncAtBlockOrigin = _mm_set1_ps(ee2.z + (ee2.x * blockPosX) + (ee2.y * blockPosY));
+
                                     // Store edge 0 equation coefficients
                                     __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
                                     __m128 sseB4Edge0 = _mm_set_ps1(ee0.y);
-                                    __m128 sseC4Edge0 = _mm_set_ps1(ee0.z);
 
                                     // Store edge 1 equation coefficients
                                     __m128 sseA4Edge1 = _mm_set_ps1(ee1.x);
                                     __m128 sseB4Edge1 = _mm_set_ps1(ee1.y);
-                                    __m128 sseC4Edge1 = _mm_set_ps1(ee1.z);
 
                                     // Store edge 2 equation coefficients
                                     __m128 sseA4Edge2 = _mm_set_ps1(ee2.x);
                                     __m128 sseB4Edge2 = _mm_set_ps1(ee2.y);
-                                    __m128 sseC4Edge2 = _mm_set_ps1(ee2.z);
 
                                     // Generate masks used for tie-breaking rules (not to double-shade along shared edges)
                                     __m128 sseA4Edge0Positive = _mm_cmpgt_ps(sseA4Edge0, _mm_setzero_ps());
@@ -825,12 +827,13 @@ namespace tyler
 
                                     for (uint32_t py = 0; py < g_scPixelBlockSize; py++)
                                     {
-                                        // All samples on the same row has the same Y position
-                                        __m128 sseY4 = _mm_set_ps1(blockPosY + py + 0.5f);
+                                        // Store Y positions in current row (all samples on the same row has the same Y position)
+                                        __m128 sseY4 = _mm_set_ps1(py + 0.5f);
 
                                         for (uint32_t px = 0; px < g_scNumEdgeTestsPerRow; px++)
                                         {
                                             // E(x, y) = (x * a) + (y * b) + c
+                                            // E(x + s, y + t) = E(x, y) + s * a + t * b
 
 #ifdef _DEBUG
                                             int32_t debugMaskScalar = 0;
@@ -871,26 +874,40 @@ namespace tyler
 #endif
                                             // Store X positions of 4 consecutive samples
                                             __m128 sseX4 = _mm_setr_ps(
-                                                blockPosX + (g_scSIMDWidth * px) + 0.5f,
-                                                blockPosX + (g_scSIMDWidth * px) + 1.5f,
-                                                blockPosX + (g_scSIMDWidth * px) + 2.5f,
-                                                blockPosX + (g_scSIMDWidth * px) + 3.5f);
-                                            
-                                            // Evaluate edge equation for edge 0
-                                            __m128 sseEdge0TempRes0 = _mm_mul_ps(sseX4, sseA4Edge0);
-                                            __m128 sseEdge0TempRes1 = _mm_mul_ps(sseY4, sseB4Edge0);
-                                            __m128 sseEdgeFunc0 = _mm_add_ps(sseC4Edge0,
-                                                _mm_add_ps(sseEdge0TempRes0, sseEdge0TempRes1));
-                                            // Evaluate edge equation for edge 1
-                                            __m128 sseEdge1TempRes0 = _mm_mul_ps(sseX4, sseA4Edge1);
-                                            __m128 sseEdge1TempRes1 = _mm_mul_ps(sseY4, sseB4Edge1);
-                                            __m128 sseEdgeFunc1 = _mm_add_ps(sseC4Edge1,
-                                                _mm_add_ps(sseEdge1TempRes0, sseEdge1TempRes1));
-                                            // Evaluate edge equation for edge 2
-                                            __m128 sseEdge2TempRes0 = _mm_mul_ps(sseX4, sseA4Edge2);
-                                            __m128 sseEdge2TempRes1 = _mm_mul_ps(sseY4, sseB4Edge2);
-                                            __m128 sseEdgeFunc2 = _mm_add_ps(sseC4Edge2,
-                                                _mm_add_ps(sseEdge2TempRes0, sseEdge2TempRes1));
+                                                g_scSIMDWidth * px + 0.5f,
+                                                g_scSIMDWidth * px + 1.5f,
+                                                g_scSIMDWidth * px + 2.5f,
+                                                g_scSIMDWidth * px + 3.5f);
+
+                                            // a0 * s
+                                            __m128 sseEdge0TermA = _mm_mul_ps(sseA4Edge0, sseX4);
+
+                                            // b0 * t
+                                            __m128 sseEdge0TermB = _mm_mul_ps(sseB4Edge0, sseY4);
+
+                                            // E(x+s, y+t) = E(x,y) + a*s + t*b
+                                            __m128 sseEdgeFunc0 = _mm_add_ps(sseEdge0FuncAtBlockOrigin,
+                                                _mm_add_ps(sseEdge0TermA, sseEdge0TermB));
+
+                                            // a1 * s
+                                            __m128 sseEdge1TermA = _mm_mul_ps(sseA4Edge1, sseX4);
+
+                                            // b1 * t
+                                            __m128 sseEdge1TermB = _mm_mul_ps(sseB4Edge1, sseY4);
+
+                                            // E(x+s, y+t) = E(x,y) + a*s + t*b
+                                            __m128 sseEdgeFunc1 = _mm_add_ps(sseEdge1FuncAtBlockOrigin,
+                                                _mm_add_ps(sseEdge1TermA, sseEdge1TermB));
+
+                                            // a2 * s
+                                            __m128 sseEdge2TermA = _mm_mul_ps(sseA4Edge2, sseX4);
+
+                                            // b2 * t
+                                            __m128 sseEdge2TermB = _mm_mul_ps(sseB4Edge2, sseY4);
+
+                                            // E(x+s, y+t) = E(x,y) + a*s + t*b
+                                            __m128 sseEdgeFunc2 = _mm_add_ps(sseEdge2FuncAtBlockOrigin,
+                                                _mm_add_ps(sseEdge2TermA, sseEdge2TermB));
 
 #ifdef EDGE_TEST_SHARED_EDGES
                                             //E(x, y) =
@@ -899,21 +916,21 @@ namespace tyler
                                             //    !E(x, y) < 0 && ((a > 0) || (a = 0 && b >= 0)0
                                             //
 
-                                            // Edge 0 tests
+                                            // Edge 0 test
                                             __m128 sseEdge0Positive = _mm_cmpgt_ps(sseEdgeFunc0, _mm_setzero_ps());
                                             __m128 sseEdge0Negative = _mm_cmplt_ps(sseEdgeFunc0, _mm_setzero_ps());
                                             __m128 sseEdge0FuncMask = _mm_or_ps(sseEdge0Positive,
                                                 _mm_andnot_ps(sseEdge0Negative,
                                                     _mm_or_ps(sseA4Edge0Positive, sseB4Edge0NonnegativeA4Zero)));
 
-                                            // Edge 1 tests
+                                            // Edge 1 test
                                             __m128 sseEdge1Positive = _mm_cmpgt_ps(sseEdgeFunc1, _mm_setzero_ps());
                                             __m128 sseEdge1Negative = _mm_cmplt_ps(sseEdgeFunc1, _mm_setzero_ps());
                                             __m128 sseEdge1FuncMask = _mm_or_ps(sseEdge1Positive,
                                                 _mm_andnot_ps(sseEdge1Negative,
                                                     _mm_or_ps(sseA4Edge1Positive, sseB4Edge1NonnegativeA4Zero)));
 
-                                            // Edge 2 tests
+                                            // Edge 2 test
                                             __m128 sseEdge2Positive = _mm_cmpgt_ps(sseEdgeFunc2, _mm_setzero_ps());
                                             __m128 sseEdge2Negative = _mm_cmplt_ps(sseEdgeFunc2, _mm_setzero_ps());
                                             __m128 sseEdge2FuncMask = _mm_or_ps(sseEdge2Positive,
