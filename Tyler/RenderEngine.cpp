@@ -12,7 +12,6 @@ namespace tyler
 
         // Allocate triangle setup data big enough to hold all possible in-flight primitives
         m_SetupBuffers.m_pEdgeCoefficients = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize * 3 /* 3 vertices */];
-
         m_SetupBuffers.m_pInterpolatedZValues = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize];
 
         // Allocate memory for bounding boxed to be cached after Binning

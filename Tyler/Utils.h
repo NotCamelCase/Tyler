@@ -31,8 +31,29 @@ namespace tyler
     // Scalar debug function to evaluate edge function E(x, y) and sample(x, y) with tie-breaking rules
     static bool EvaluateEdgeFunction(const glm::vec3& E, const glm::vec2& sample)
     {
-        // Interpolate edge function at given sample
+        // Compute edge function at given sample
         float result = (sample.x * E.x) + (sample.y * E.y) + E.z;
+#ifdef EDGE_TEST_SHARED_EDGES
+        // Apply tie-breaking rules on shared vertices in order to avoid double-shading fragments
+        if (result > 0.f) return true;
+        else if (result < 0.f) return false;
+
+        if (E.x > 0.f) return true;
+        else if (E.x < 0.f) return false;
+
+        if ((E.x == 0.0f) && (E.y < 0.f)) return false;
+        else return true;
+#else
+        return result >= 0.f;
+#endif
+    }
+
+    // Scalar debug function to evaluate edge function E(x+s, y+t) incrementally
+    static bool EvaluateEdgeFunctionIncremental(const glm::vec3& E, const glm::vec2& sample, float resultAtOrigin)
+    {
+        // Evaluate edge function E(x,+s, y+t) incrementally
+        float result = resultAtOrigin +
+            (sample.x * E.x) + (sample.y * E.y);
 #ifdef EDGE_TEST_SHARED_EDGES
         // Apply tie-breaking rules on shared vertices in order to avoid double-shading fragments
         if (result > 0.f) return true;

@@ -840,31 +840,35 @@ namespace tyler
                                             {
                                                 // Debug for SSE edge tests
 
+                                                float edge0FuncAtBlockOrigin = ee0.z + (ee0.x * blockPosX) + (ee0.y * blockPosY);
+                                                float edge1FuncAtBlockOrigin = ee1.z + (ee1.x * blockPosX) + (ee1.y * blockPosY);
+                                                float edge2FuncAtBlockOrigin = ee2.z + (ee2.x * blockPosX) + (ee2.y * blockPosY);
+
                                                 // 4 Sample locations
-                                                glm::vec2 sample0 = { blockPosX + (g_scSIMDWidth * px) + 0.5f, blockPosY + py + 0.5f };
-                                                glm::vec2 sample1 = { blockPosX + (g_scSIMDWidth * px) + 1.5f, blockPosY + py + 0.5f };
-                                                glm::vec2 sample2 = { blockPosX + (g_scSIMDWidth * px) + 2.5f, blockPosY + py + 0.5f };
-                                                glm::vec2 sample3 = { blockPosX + (g_scSIMDWidth * px) + 3.5f, blockPosY + py + 0.5f };
+                                                glm::vec2 sample0 = { g_scSIMDWidth * px + 0.5f, py + 0.5f };
+                                                glm::vec2 sample1 = { g_scSIMDWidth * px + 1.5f, py + 0.5f };
+                                                glm::vec2 sample2 = { g_scSIMDWidth * px + 2.5f, py + 0.5f };
+                                                glm::vec2 sample3 = { g_scSIMDWidth * px + 3.5f, py + 0.5f };
 
                                                 bool inside0 =
-                                                    EvaluateEdgeFunction(ee0, sample0) &&
-                                                    EvaluateEdgeFunction(ee1, sample0) &&
-                                                    EvaluateEdgeFunction(ee2, sample0);
+                                                    EvaluateEdgeFunctionIncremental(ee0, sample0, edge0FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee1, sample0, edge1FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee2, sample0, edge2FuncAtBlockOrigin);
 
                                                 bool inside1 =
-                                                    EvaluateEdgeFunction(ee0, sample1) &&
-                                                    EvaluateEdgeFunction(ee1, sample1) &&
-                                                    EvaluateEdgeFunction(ee2, sample1);
+                                                    EvaluateEdgeFunctionIncremental(ee0, sample1, edge0FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee1, sample1, edge1FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee2, sample1, edge2FuncAtBlockOrigin);
 
                                                 bool inside2 =
-                                                    EvaluateEdgeFunction(ee0, sample2) &&
-                                                    EvaluateEdgeFunction(ee1, sample2) &&
-                                                    EvaluateEdgeFunction(ee2, sample2);
+                                                    EvaluateEdgeFunctionIncremental(ee0, sample2, edge0FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee1, sample2, edge1FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee2, sample2, edge2FuncAtBlockOrigin);
 
                                                 bool inside3 =
-                                                    EvaluateEdgeFunction(ee0, sample3) &&
-                                                    EvaluateEdgeFunction(ee1, sample3) &&
-                                                    EvaluateEdgeFunction(ee2, sample3);
+                                                    EvaluateEdgeFunctionIncremental(ee0, sample3, edge0FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee1, sample3, edge1FuncAtBlockOrigin) &&
+                                                    EvaluateEdgeFunctionIncremental(ee2, sample3, edge2FuncAtBlockOrigin);
 
                                                 if (inside0) debugMaskScalar |= g_scQuadMask0;
                                                 if (inside1) debugMaskScalar |= g_scQuadMask1;
