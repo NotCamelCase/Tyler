@@ -66,6 +66,7 @@ namespace tyler
         // Store tileIdx and increment writeIdx
         void InsertTileIndex(uint32_t tileIdx)
         {
+            ASSERT(tileIdx < m_TileCountAllocated);
             uint32_t prevTail = m_WriteIdx.fetch_add(1, std::memory_order_seq_cst);
 
             m_pData[prevTail] = tileIdx;
@@ -87,13 +88,13 @@ namespace tyler
             return m_pData[prevReadIdx];
         }
 
-        // Backing memory for tile indices
-        uint32_t*               m_pData = nullptr;
-        uint32_t                m_TileCountAllocated = 0u;
-
         // Running indices of current read/write/fetch elements
         std::atomic<uint32_t>   m_ReadIdx;
         std::atomic<uint32_t>   m_WriteIdx;
         std::atomic<uint32_t>   m_FetchIdx;
+
+        // Backing memory for tile indices
+        uint32_t*               m_pData = nullptr;
+        uint32_t                m_TileCountAllocated = 0u;
     };
 }

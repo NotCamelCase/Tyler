@@ -434,4 +434,67 @@ namespace tyler
     {
         m_CoverageMasks[tileIdx][threadIdx]->IncreaseCapacityIfNeeded();
     }
+
+    void RenderEngine::UpdateDepthBuffer(const __m128& sseWriteMask, const __m128& sseDepthValues, uint32_t sampleX, uint32_t sampleY)
+    {
+        __m128i sseZInterpolated = _mm_castps_si128(sseDepthValues);
+
+        uint32_t depthPitch = m_Framebuffer.m_Width;
+        float* pDepthBufferAddress = &m_Framebuffer.m_pDepthBuffer[sampleX + sampleY * depthPitch];
+
+        // Mask-write interpolated Z values
+        _mm_maskmoveu_si128(
+            sseZInterpolated,
+            _mm_castps_si128(sseWriteMask),
+            reinterpret_cast<char*>(pDepthBufferAddress));
+    }
+
+    __m128 RenderEngine::FetchDepthBuffer(uint32_t sampleX, uint32_t sampleY) const
+    {
+        // Load current depth buffer contents
+        uint32_t depthPitch = m_Framebuffer.m_Width;
+        float* pDepthBufferAddress = &m_Framebuffer.m_pDepthBuffer[sampleX + sampleY * depthPitch];
+
+        return _mm_load_ps(pDepthBufferAddress);
+    }
+
+    void RenderEngine::UpdateColorBuffer(const __m128& sseWriteMask, const FragmentOutput& fragmentOutput, uint32_t sampleX, uint32_t sampleY)
+    {
+        //TODO: Clamp fragments to (0.0, 1.0) first maybe?!
+
+        // rgba = cast<uint>(rgba * 255.f)
+        __m128i sseSample0 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[0], _mm_set1_ps(255.f)));
+        __m128i sseSample1 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[1], _mm_set1_ps(255.f)));
+        __m128i sseSample2 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[2], _mm_set1_ps(255.f)));
+        __m128i sseSample3 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[3], _mm_set1_ps(255.f)));
+
+        // Pack down to 8 bits
+        sseSample0 = _mm_packus_epi32(sseSample0, sseSample0);
+        sseSample0 = _mm_packus_epi16(sseSample0, sseSample0);
+
+        sseSample1 = _mm_packus_epi32(sseSample1, sseSample1);
+        sseSample1 = _mm_packus_epi16(sseSample1, sseSample1);
+
+        sseSample2 = _mm_packus_epi32(sseSample2, sseSample2);
+        sseSample2 = _mm_packus_epi16(sseSample2, sseSample2);
+
+        sseSample3 = _mm_packus_epi32(sseSample3, sseSample3);
+        sseSample3 = _mm_packus_epi16(sseSample3, sseSample3);
+
+        // Compose final 4-sample values out of 4x32-bit fragment colors
+        __m128i sseFragmentOut = _mm_setr_epi32(
+            _mm_cvtsi128_si32(sseSample0),
+            _mm_cvtsi128_si32(sseSample1),
+            _mm_cvtsi128_si32(sseSample2),
+            _mm_cvtsi128_si32(sseSample3));
+
+        uint32_t colorPitch = m_Framebuffer.m_Width * 4;
+        uint8_t* pColorBufferAddress = &m_Framebuffer.m_pColorBuffer[4 * sampleX + sampleY * colorPitch];
+
+        // Update color buffer values of the samples which pass depth test
+        _mm_maskmoveu_si128(
+            sseFragmentOut,
+            _mm_castps_si128(sseWriteMask),
+            reinterpret_cast<char*>(pColorBufferAddress));
+    }
 }

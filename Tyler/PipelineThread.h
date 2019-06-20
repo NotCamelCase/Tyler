@@ -12,7 +12,6 @@ namespace tyler
     enum class ThreadStatus : uint8_t
     {
         IDLE,                               // Waiting for input arrival by RenderEngine
-        TERMINATED,                         // Thread shut down requested
         DRAWCALL_TOP,                       // Input data received, start processing drawcall
         DRAWCALL_GEOMETRY,                  // Geometry processing in progress
         DRAWCALL_BINNING,                   // Binning in progress
@@ -20,7 +19,8 @@ namespace tyler
         DRAWCALL_RASTERIZATION,             // Rasterization in progress
         DRAWCALL_SYNC_POINT_POST_RASTER,    // Sync post rasterization
         DRAWCALL_FRAGMENTSHADER,            // Fragment processing in progress
-        DRAWCALL_BOTTOM                     // Drawcall processed
+        DRAWCALL_BOTTOM,                    // Drawcall processed
+        TERMINATED                          // Thread shut down requested
     };
 
     struct PipelineThread
@@ -35,7 +35,7 @@ namespace tyler
         void ProcessDrawcall();
 
         // Vertex Shader
-        void ExecuteVertexShader(uint32_t primIdx, uint32_t drawIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip);
+        void ExecuteVertexShader(uint32_t drawIdx, uint32_t primIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip);
 
         // Clipper (full-triangle only)
         bool ExecuteFullTriangleClipping(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
@@ -54,13 +54,7 @@ namespace tyler
 
         void FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx);
         void FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx);
-        void FragmentShadeQuad(CoverageMask* pMask);
-
-        // Write interpolated Z values back to depth buffer based on depth test mask at given address
-        void UpdateDepthBuffer(const __m128& sseDepthMask, const __m128& sseDepthValues, float* pDepthBufferAddress);
-
-        // Write shaded fragment output to color buffer based on colorWriteMask at given address
-        void UpdateColorBuffer(const __m128& sseColorWriteMask, const FragmentOutput& fragmentOutput, uint8_t* pColorBufferAddress);
+        void FragmentShadeQuad(CoverageMask* pMask);        
 
         // Given three clip-space verices, compute the bounding box of a triangle clamped to width/height
         void ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, uint32_t width, uint32_t height, Rect2D* pBbox) const;
@@ -105,7 +99,7 @@ namespace tyler
 
         // Utilitie for VS$
         bool PerformVertexCacheLookup(uint32_t primIdx, uint32_t* pCachedIdx);
-        void CacheVertexData(uint32_t vertexIdx, const glm::vec4& v0Clip, const tyler::VertexAttributes& tempVertexAttrib);
+        void CacheVertexData(uint32_t vertexIdx, const glm::vec4& vClip, const tyler::VertexAttributes& tempVertexAttrib);
 
         // Unique RenderEngine instance
         RenderEngine*               m_pRenderEngine = nullptr;

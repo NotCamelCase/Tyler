@@ -11,7 +11,7 @@ namespace tyler
     static constexpr bool       g_scVertexShaderCacheEnabled = true;
 
     // VS$ max entry size per-thread
-    static constexpr uint32_t   g_scVertexShaderCacheSize = 64u;
+    static constexpr uint32_t   g_scVertexShaderCacheSize = 32u;
 
     // All tiles consist of blocks which are groups of 8x8 pixels
     static constexpr uint32_t   g_scPixelBlockSize = 8u;

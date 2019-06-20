@@ -45,18 +45,18 @@ namespace tyler
         LOG("Thread %d processing geometry...\n", m_ThreadIdx);
 
         // Iterate over triangles in assigned drawcall range
-        for (uint32_t primIdx = m_ActiveDrawParams.m_ElemsStart, drawIdx = m_ActiveDrawParams.m_ElemsStart % m_RenderConfig.m_MaxDrawIterationSize;
-            primIdx < m_ActiveDrawParams.m_ElemsEnd;
-            primIdx++, drawIdx++)
+        for (uint32_t drawIdx = m_ActiveDrawParams.m_ElemsStart, primIdx = m_ActiveDrawParams.m_ElemsStart % m_RenderConfig.m_MaxDrawIterationSize;
+            drawIdx < m_ActiveDrawParams.m_ElemsEnd;
+            drawIdx++, primIdx++)
         {
-            // primIdx = Assigned prim indices which will be only used to fetch indices
-            // drawIdx = Prim index relative to current iteration
+            // drawIdx = Assigned prim indices which will be only used to fetch indices
+            // primIdx = Prim index relative to current iteration
 
             // Clip-space vertices to be retrieved from VS
             glm::vec4 v0Clip, v1Clip, v2Clip;
 
             // VS
-            ExecuteVertexShader(primIdx, drawIdx, &v0Clip, &v1Clip, &v2Clip);
+            ExecuteVertexShader(drawIdx, primIdx, &v0Clip, &v1Clip, &v2Clip);
 
             // CLIPPER
             if (!ExecuteFullTriangleClipping(v0Clip, v1Clip, v2Clip))
@@ -66,14 +66,14 @@ namespace tyler
             }
 
             // TRIANGLE SETUP & CULL
-            if (!ExecuteTriangleSetupAndCull(drawIdx, v0Clip, v1Clip, v2Clip))
+            if (!ExecuteTriangleSetupAndCull(primIdx, v0Clip, v1Clip, v2Clip))
             {
                 // Triangle culled, proceed iteration with next primitive
                 continue;
             }
 
             // BINNER
-            ExecuteBinner(drawIdx, v0Clip, v1Clip, v2Clip);
+            ExecuteBinner(primIdx, v0Clip, v1Clip, v2Clip);
         }
 
         ASSERT(m_CurrentState.load() <= ThreadStatus::DRAWCALL_BINNING);
@@ -130,7 +130,7 @@ namespace tyler
         m_CurrentState.store(ThreadStatus::DRAWCALL_BOTTOM, std::memory_order_relaxed);
     }
 
-    void PipelineThread::ExecuteVertexShader(uint32_t primIdx, uint32_t drawIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip)
+    void PipelineThread::ExecuteVertexShader(uint32_t drawIdx, uint32_t primIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip)
     {
         uint8_t* pVertexBuffer = static_cast<uint8_t*>(m_pRenderEngine->m_pVertexBuffer);
         IndexBuffer* pIndexBuffer = m_pRenderEngine->m_pIndexBuffer;
@@ -160,9 +160,9 @@ namespace tyler
             pTempVertexAttrib2 = &m_TempVertexAttributes[2];
 
             // Fetch pointers to vertex input that'll be passed to vertex shader
-            uint8_t* pVertIn0 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * primIdx + 0)]];
-            uint8_t* pVertIn1 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * primIdx + 1)]];
-            uint8_t* pVertIn2 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * primIdx + 2)]];
+            uint8_t* pVertIn0 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 0)]];
+            uint8_t* pVertIn1 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 1)]];
+            uint8_t* pVertIn2 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 2)]];
 
             // Invoke vertex shader with vertex attributes payload
             *pV0Clip = VS(pVertIn0, pTempVertexAttrib0, pConstantBuffer);
@@ -175,7 +175,7 @@ namespace tyler
             uint32_t cacheEntry1 = UINT32_MAX;
             uint32_t cacheEntry2 = UINT32_MAX;
 
-            uint32_t vertexIdx0 = pIndexBuffer[vertexOffset + (3 * primIdx)];
+            uint32_t vertexIdx0 = pIndexBuffer[vertexOffset + (3 * drawIdx)];
             if (PerformVertexCacheLookup(vertexIdx0, &cacheEntry0))
             {
                 // Vertex 0 is found in the cache, skip VS and fetch cached data
@@ -195,7 +195,7 @@ namespace tyler
                 CacheVertexData(vertexIdx0, *pV0Clip, *pTempVertexAttrib0);
             }
 
-            uint32_t vertexIdx1 = pIndexBuffer[vertexOffset + (3 * primIdx + 1)];
+            uint32_t vertexIdx1 = pIndexBuffer[vertexOffset + (3 * drawIdx + 1)];
             if (PerformVertexCacheLookup(vertexIdx1, &cacheEntry1))
             {
                 // Vertex 1 is found in the cache, skip VS and fetch cached data
@@ -215,7 +215,7 @@ namespace tyler
                 CacheVertexData(vertexIdx1, *pV1Clip, *pTempVertexAttrib1);
             }
 
-            uint32_t vertexIdx2 = pIndexBuffer[vertexOffset + (3 * primIdx + 2)];
+            uint32_t vertexIdx2 = pIndexBuffer[vertexOffset + (3 * drawIdx + 2)];
             if (PerformVertexCacheLookup(vertexIdx2, &cacheEntry2))
             {
                 // Vertex 2 is found in the cache, skip VS and fetch cached data
@@ -237,17 +237,17 @@ namespace tyler
         }
 
         // Calculate interpolation data for active vertex attributes
-        CalculateInterpolationCoefficients(drawIdx, *pTempVertexAttrib0, *pTempVertexAttrib1, *pTempVertexAttrib2);
+        CalculateInterpolationCoefficients(primIdx, *pTempVertexAttrib0, *pTempVertexAttrib1, *pTempVertexAttrib2);
     }
 
-    void PipelineThread::CacheVertexData(uint32_t vertexIdx, const glm::vec4& v0Clip, const tyler::VertexAttributes& tempVertexAttrib)
+    void PipelineThread::CacheVertexData(uint32_t vertexIdx, const glm::vec4& vClip, const tyler::VertexAttributes& tempVertexAttrib)
     {
         // Check if VS$ cache has space and if so, append new vertex data
         if (m_NumVertexCacheEntries < g_scVertexShaderCacheSize)
         {
             m_CachedVertexIndices[m_NumVertexCacheEntries] = vertexIdx;
 
-            m_VertexCacheEntries[m_NumVertexCacheEntries].m_ClipPos = v0Clip;
+            m_VertexCacheEntries[m_NumVertexCacheEntries].m_ClipPos = vClip;
             m_VertexCacheEntries[m_NumVertexCacheEntries].m_VertexAttribs = tempVertexAttrib;
 
             ++m_NumVertexCacheEntries;
@@ -391,7 +391,6 @@ namespace tyler
         // det(M) < 0  -> back-facing triangle
         float detM = (c0 * v0Homogen.w) + (c1 * v1Homogen.w) + (c2 * v2Homogen.w);
 
-        //TODO: FP precision!
         //TODO: Proper culling!
         //TODO: If to render back-facing tris, invert the signs of elements of adj(M)
         if (detM > 0.f)
@@ -451,9 +450,13 @@ namespace tyler
 
         // Given a tile size and frame buffer dimensions, find min/max range of the tiles that fall within bbox computed above
         // which we're going to iterate over, in order to determine if the primitive should be binned or not
+        
+        // Use floor(), min indices are inclusive
         uint32_t minTileX = static_cast<uint32_t>(glm::floor(bbox.m_MinX / m_RenderConfig.m_TileSize));
-        uint32_t maxTileX = static_cast<uint32_t>(glm::ceil(bbox.m_MaxX / m_RenderConfig.m_TileSize));
         uint32_t minTileY = static_cast<uint32_t>(glm::floor(bbox.m_MinY / m_RenderConfig.m_TileSize));
+
+        // Use ceil(), max indices are exclusive
+        uint32_t maxTileX = static_cast<uint32_t>(glm::ceil(bbox.m_MaxX / m_RenderConfig.m_TileSize));
         uint32_t maxTileY = static_cast<uint32_t>(glm::ceil(bbox.m_MaxY / m_RenderConfig.m_TileSize));
 
         ASSERT((minTileX <= maxTileX) && (maxTileX <= m_pRenderEngine->m_NumTilePerRow));
@@ -483,8 +486,6 @@ namespace tyler
             { -static_cast<float>(m_RenderConfig.m_TileSize), static_cast<float>(m_RenderConfig.m_TileSize) },    // TR = 1 -> TA = 2
             { static_cast<float>(m_RenderConfig.m_TileSize), static_cast<float>(m_RenderConfig.m_TileSize) }      // TR = 0 -> TA = 3
         };
-
-        //TODO: FP Precision
 
         // (x, y) -> sample location | (a, b, c) -> edge equation coefficients
         // E(x, y) = (a * x) + (b * y) + c
@@ -654,9 +655,12 @@ namespace tyler
 
                     // Given a fixed 8x8 block and tile size, find min/max range of the blocks that fall within bbox computed above
                     // which we're going to iterate over, in order to determine how blocks within tile are to be rasterized
+
+                    // Use floor(), min indices are inclusive
                     uint32_t minBlockX = static_cast<uint32_t>(glm::floor((bbox.m_MinX - tilePosX) / g_scPixelBlockSize));
-                    uint32_t maxBlockX = static_cast<uint32_t>(glm::ceil((bbox.m_MaxX - tilePosX) / g_scPixelBlockSize));
                     uint32_t minBlockY = static_cast<uint32_t>(glm::floor((bbox.m_MinY - tilePosY) / g_scPixelBlockSize));
+                    // Use ceil(), max indices are exclusive
+                    uint32_t maxBlockX = static_cast<uint32_t>(glm::ceil((bbox.m_MaxX - tilePosX) / g_scPixelBlockSize));
                     uint32_t maxBlockY = static_cast<uint32_t>(glm::ceil((bbox.m_MaxY - tilePosY) / g_scPixelBlockSize));
 
                     ASSERT((minBlockX <= maxBlockX) && (maxBlockX <= m_RenderConfig.m_TileSize / g_scPixelBlockSize));
@@ -786,8 +790,6 @@ namespace tyler
                                     // Overlap
                                     // Block is partially covered by the triangle, descend into pixel level and perform edge tests
 
-                                    //TODO: Incremental edge function evaluation!
-
                                     LOG("Tile %d block (%d, %d) overlapping tests by thread %d\n", nextTileIdx, bx, by, m_ThreadIdx);
 
                                     // Position of the block that we're testing at pixel level
@@ -883,35 +885,20 @@ namespace tyler
                                                 g_scSIMDWidth * px + 2.5f,
                                                 g_scSIMDWidth * px + 3.5f);
 
-                                            // a0 * s
+                                            // a * s
                                             __m128 sseEdge0TermA = _mm_mul_ps(sseA4Edge0, sseX4);
-
-                                            // b0 * t
-                                            __m128 sseEdge0TermB = _mm_mul_ps(sseB4Edge0, sseY4);
-
-                                            // E(x+s, y+t) = E(x,y) + a*s + t*b
-                                            __m128 sseEdgeFunc0 = _mm_add_ps(sseEdge0FuncAtBlockOrigin,
-                                                _mm_add_ps(sseEdge0TermA, sseEdge0TermB));
-
-                                            // a1 * s
                                             __m128 sseEdge1TermA = _mm_mul_ps(sseA4Edge1, sseX4);
-
-                                            // b1 * t
-                                            __m128 sseEdge1TermB = _mm_mul_ps(sseB4Edge1, sseY4);
-
-                                            // E(x+s, y+t) = E(x,y) + a*s + t*b
-                                            __m128 sseEdgeFunc1 = _mm_add_ps(sseEdge1FuncAtBlockOrigin,
-                                                _mm_add_ps(sseEdge1TermA, sseEdge1TermB));
-
-                                            // a2 * s
                                             __m128 sseEdge2TermA = _mm_mul_ps(sseA4Edge2, sseX4);
 
-                                            // b2 * t
+                                            // b * t
+                                            __m128 sseEdge0TermB = _mm_mul_ps(sseB4Edge0, sseY4);
+                                            __m128 sseEdge1TermB = _mm_mul_ps(sseB4Edge1, sseY4);
                                             __m128 sseEdge2TermB = _mm_mul_ps(sseB4Edge2, sseY4);
 
                                             // E(x+s, y+t) = E(x,y) + a*s + t*b
-                                            __m128 sseEdgeFunc2 = _mm_add_ps(sseEdge2FuncAtBlockOrigin,
-                                                _mm_add_ps(sseEdge2TermA, sseEdge2TermB));
+                                            __m128 sseEdgeFunc0 = _mm_add_ps(sseEdge0FuncAtBlockOrigin, _mm_add_ps(sseEdge0TermA, sseEdge0TermB));
+                                            __m128 sseEdgeFunc1 = _mm_add_ps(sseEdge1FuncAtBlockOrigin, _mm_add_ps(sseEdge1TermA, sseEdge1TermB));
+                                            __m128 sseEdgeFunc2 = _mm_add_ps(sseEdge2FuncAtBlockOrigin, _mm_add_ps(sseEdge2TermA, sseEdge2TermB));
 
 #ifdef EDGE_TEST_SHARED_EDGES
                                             //E(x, y) =
@@ -1050,11 +1037,6 @@ namespace tyler
 
     void PipelineThread::FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx)
     {
-        //TODO: Implement attribute & z interpolation w/ AVX!
-
-        const uint32_t colorPitch = m_pRenderEngine->m_Framebuffer.m_Width * 4;
-        const uint32_t depthPitch = m_pRenderEngine->m_Framebuffer.m_Width;
-
         FragmentShader FS = m_pRenderEngine->m_FragmentShader;
         ASSERT(FS != nullptr);
 
@@ -1117,8 +1099,7 @@ namespace tyler
                 InterpolateDepthValues(primIdx, ssef0XY, ssef1XY, &sseZInterpolated);
 
                 // Load current depth buffer contents
-                float* pDepthBufferAddress = &m_pRenderEngine->m_Framebuffer.m_pDepthBuffer[sampleX + sampleY * depthPitch];
-                __m128 sseDepthCurrent = _mm_load_ps(pDepthBufferAddress);
+                __m128 sseDepthCurrent = m_pRenderEngine->FetchDepthBuffer(sampleX, sampleY);
 
                 // Perform LESS_THAN_EQUAL depth test
                 __m128 sseDepthRes = _mm_cmple_ps(sseZInterpolated, sseDepthCurrent);
@@ -1136,11 +1117,10 @@ namespace tyler
                 FS(&interpolatedAttribs, m_pRenderEngine->m_pConstantBuffer, &fragmentOutput);
 
                 // Write interpolated Z values
-                UpdateDepthBuffer(sseDepthRes, sseZInterpolated, pDepthBufferAddress);
+                m_pRenderEngine->UpdateDepthBuffer(sseDepthRes, sseZInterpolated, sampleX, sampleY);
 
                 // Write fragment output
-                uint8_t* pColorBufferAddress = &m_pRenderEngine->m_Framebuffer.m_pColorBuffer[4 * sampleX + sampleY * colorPitch];
-                UpdateColorBuffer(sseDepthRes, fragmentOutput, pColorBufferAddress);
+                m_pRenderEngine->UpdateColorBuffer(sseDepthRes, fragmentOutput, sampleX, sampleY);
             }
         }
     }
@@ -1148,9 +1128,6 @@ namespace tyler
     void PipelineThread::FragmentShadeQuad(CoverageMask* pMask)
     {
         ASSERT(pMask != nullptr);
-
-        const uint32_t colorPitch = m_pRenderEngine->m_Framebuffer.m_Width * 4 /*R8G8B8A8_UNORM*/;
-        const uint32_t depthPitch = m_pRenderEngine->m_Framebuffer.m_Width;
 
         FragmentShader FS = m_pRenderEngine->m_FragmentShader;
         ASSERT(FS != nullptr);
@@ -1202,8 +1179,7 @@ namespace tyler
         InterpolateDepthValues(pMask->m_PrimIdx, ssef0XY, ssef1XY, &sseZInterpolated);
 
         // Load current depth buffer contents
-        float* pDepthBufferAddress = &m_pRenderEngine->m_Framebuffer.m_pDepthBuffer[pMask->m_SampleX + pMask->m_SampleY * depthPitch];
-        __m128 sseDepthCurrent = _mm_load_ps(pDepthBufferAddress);
+        __m128 sseDepthCurrent = m_pRenderEngine->FetchDepthBuffer(pMask->m_SampleX, pMask->m_SampleY);
 
         // Perform LESS_THAN_EQUAL depth test
         __m128 sseDepthRes = _mm_cmple_ps(sseZInterpolated, sseDepthCurrent);
@@ -1237,68 +1213,10 @@ namespace tyler
         __m128 sseWriteMask = _mm_and_ps(sseDepthRes, _mm_castsi128_ps(sseColorMask));
 
         // Write interpolated Z values
-        UpdateDepthBuffer(sseWriteMask, sseZInterpolated, pDepthBufferAddress);
+        m_pRenderEngine->UpdateDepthBuffer(sseWriteMask, sseZInterpolated, pMask->m_SampleX, pMask->m_SampleY);
 
         // Write fragment output
-        uint8_t* pColorBufferAddress = &m_pRenderEngine->m_Framebuffer.m_pColorBuffer[4 * pMask->m_SampleX + pMask->m_SampleY * colorPitch];
-        UpdateColorBuffer(sseWriteMask, fragmentOutput, pColorBufferAddress);
-    }
-
-    void PipelineThread::UpdateDepthBuffer(const __m128& sseDepthRes, const __m128& sseDepthValues, float* pDepthBufferAddress)
-    {
-        ASSERT(pDepthBufferAddress != nullptr);
-
-        // Update depth buffer with interpolated Z values
-                // Mask-store so that only those samples which pass the depth test is updated
-        __m128i sseDepthMask = _mm_castps_si128(sseDepthRes);
-        __m128i sseZInterpolated = _mm_castps_si128(sseDepthValues);
-
-        // Mask-write interpolated Z values
-        _mm_maskmoveu_si128(
-            sseZInterpolated,
-            sseDepthMask,
-            reinterpret_cast<char*>(pDepthBufferAddress));
-    }
-
-    void PipelineThread::UpdateColorBuffer(const __m128& sseColorWriteMask, const FragmentOutput& fragmentOutput, uint8_t* pColorBufferAddress)
-    {
-        ASSERT(pColorBufferAddress != nullptr);
-
-        //TODO: Clamp fragments to (0.0, 1.0) first maybe?!
-
-        __m128i sseWriteMask = _mm_castps_si128(sseColorWriteMask);
-
-        // rgba = cast<uint>(rgba * 255.f)
-        __m128i sseSample0 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[0], _mm_set1_ps(255.f)));
-        __m128i sseSample1 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[1], _mm_set1_ps(255.f)));
-        __m128i sseSample2 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[2], _mm_set1_ps(255.f)));
-        __m128i sseSample3 = _mm_cvtps_epi32(_mm_mul_ps(fragmentOutput.m_FragmentColors[3], _mm_set1_ps(255.f)));
-
-        // Pack down to 8 bits
-        sseSample0 = _mm_packus_epi32(sseSample0, sseSample0);
-        sseSample0 = _mm_packus_epi16(sseSample0, sseSample0);
-
-        sseSample1 = _mm_packus_epi32(sseSample1, sseSample1);
-        sseSample1 = _mm_packus_epi16(sseSample1, sseSample1);
-
-        sseSample2 = _mm_packus_epi32(sseSample2, sseSample2);
-        sseSample2 = _mm_packus_epi16(sseSample2, sseSample2);
-
-        sseSample3 = _mm_packus_epi32(sseSample3, sseSample3);
-        sseSample3 = _mm_packus_epi16(sseSample3, sseSample3);
-
-        // Compose final 4-sample values out of 4x32-bit fragment colors
-        __m128i sseFragmentOut = _mm_setr_epi32(
-            _mm_cvtsi128_si32(sseSample0),
-            _mm_cvtsi128_si32(sseSample1),
-            _mm_cvtsi128_si32(sseSample2),
-            _mm_cvtsi128_si32(sseSample3));
-
-        // Update color buffer values of the samples which pass depth test
-        _mm_maskmoveu_si128(
-            sseFragmentOut,
-            sseWriteMask,
-            reinterpret_cast<char*>(pColorBufferAddress));
+        m_pRenderEngine->UpdateColorBuffer(sseWriteMask, fragmentOutput, pMask->m_SampleX, pMask->m_SampleY);
     }
 
     void PipelineThread::ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, uint32_t width, uint32_t height, Rect2D* pBbox) const
@@ -1424,9 +1342,9 @@ namespace tyler
                 _mm_mul_ps(sseY4, sseB4Edge2),
                 _mm_mul_ps(sseX4, sseA4Edge2)));
 
-        // Compute sum of F(x,y)
+        // Compute F(x,y) = F0(x,y) + F1(x,y) + F2(x,y)
         __m128 sseR4 = _mm_add_ps(sseF2XY4,
-            _mm_add_ps(sseF0XY4, sseF1XY4)); // F0(x,y) + F1(x,y) + F2(x,y)
+            _mm_add_ps(sseF0XY4, sseF1XY4));
 
         // Compute perspective correction factor
         sseR4 = _mm_rcp_ps(sseR4);

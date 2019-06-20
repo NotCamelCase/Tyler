@@ -15,7 +15,7 @@ namespace tyler
         glm::vec3*  m_pEdgeCoefficients;
 
         // Interpolated z coordinates of three vertices
-        glm::vec3* m_pInterpolatedZValues;
+        glm::vec3*  m_pInterpolatedZValues;
 
         // Cache bounding boxes computed during binning for use in rasterization
         Rect2D*     m_pPrimBBoxes;
@@ -70,6 +70,15 @@ namespace tyler
 
         // Check and grow mask buffers if needed
         void ResizeCoverageMaskBuffer(uint32_t threadIdx, uint32_t tileIdx);
+
+        // Write interpolated Z values to depth buffer based on write mask at given sample
+        void UpdateDepthBuffer(const __m128& sseWriteMask, const __m128& sseDepthValues, uint32_t sampleX, uint32_t sampleY);
+
+        // Fetch depth buffer contents at given sample
+        __m128 FetchDepthBuffer(uint32_t sampleX, uint32_t sampleY) const;
+
+        // Write shaded fragment output to color buffer based on write mask at given sample
+        void UpdateColorBuffer(const __m128& sseWriteMask, const FragmentOutput& fragmentOutput, uint32_t sampleX, uint32_t sampleY);
 
         // Global rendering parameters
         const RasterizerConfig&                         m_RenderConfig;
