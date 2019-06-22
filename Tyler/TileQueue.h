@@ -44,10 +44,10 @@ namespace tyler
             // so we simply delete it and re-allocate manually for current totalTileCount
             delete[] m_pData;
 
-            m_TileCountAllocated = totalTileCount;
+            m_DataSize = totalTileCount;
 
             // Allocate backing memory
-            m_pData = new uint32_t[m_TileCountAllocated];
+            m_pData = new uint32_t[m_DataSize];
 
             ResetQueue();
         }
@@ -60,14 +60,16 @@ namespace tyler
             m_WriteIdx.store(0u, std::memory_order_relaxed);
             m_FetchIdx.store(0u, std::memory_order_relaxed);
 
-            memset(m_pData, g_scInvalidTileIndex, sizeof(uint32_t) * m_TileCountAllocated);
+            memset(m_pData, g_scInvalidTileIndex, sizeof(uint32_t) * m_DataSize);
         }
 
         // Store tileIdx and increment writeIdx
         void InsertTileIndex(uint32_t tileIdx)
         {
-            ASSERT(tileIdx < m_TileCountAllocated);
+            ASSERT(tileIdx < m_DataSize);
+
             uint32_t prevTail = m_WriteIdx.fetch_add(1, std::memory_order_seq_cst);
+            ASSERT(prevTail < m_DataSize);
 
             m_pData[prevTail] = tileIdx;
         }
@@ -76,6 +78,7 @@ namespace tyler
         uint32_t RemoveTileIndex()
         {
             uint32_t prevHead = m_ReadIdx.fetch_add(1, std::memory_order_seq_cst);
+            ASSERT(prevHead < m_DataSize);
 
             return m_pData[prevHead];
         }
@@ -84,6 +87,7 @@ namespace tyler
         uint32_t FetchNextTileIndex()
         {
             uint32_t prevReadIdx = m_FetchIdx.fetch_add(1, std::memory_order_seq_cst);
+            ASSERT(prevReadIdx < m_DataSize);
 
             return m_pData[prevReadIdx];
         }
@@ -95,6 +99,6 @@ namespace tyler
 
         // Backing memory for tile indices
         uint32_t*               m_pData = nullptr;
-        uint32_t                m_TileCountAllocated = 0u;
+        uint32_t                m_DataSize = 0u;
     };
 }

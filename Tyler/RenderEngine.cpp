@@ -183,8 +183,8 @@ namespace tyler
                 }
             }
 
-            // Allocate rasterizer queue
-            m_RasterizerQueue.AllocateBackingMemory(totalTileCount);
+            // Allocate rasterizer queue sized for total tile count + overrun space (when any thread will reach the end of the queue memory)
+            m_RasterizerQueue.AllocateBackingMemory(totalTileCount + m_RenderConfig.m_NumPipelineThreads);
         }
     }
 
@@ -389,6 +389,8 @@ namespace tyler
 
     void RenderEngine::EnqueueTileForRasterization(uint32_t tileIdx)
     {
+        ASSERT(tileIdx < (m_NumTilePerColumn * m_NumTilePerRow));
+
         // Append the tile to the rasterizer queue if not already done
         if (!m_TileList[tileIdx].m_IsTileQueued.test_and_set(std::memory_order_acq_rel))
         {
@@ -492,7 +494,7 @@ namespace tyler
         uint8_t* pColorBufferAddress = &m_Framebuffer.m_pColorBuffer[4 * sampleX + sampleY * colorPitch];
 
         // Update color buffer values of the samples which pass depth test
-        _mm_maskmoveu_si128(
+        _mm_maskmoveu_si128( // There is no _mm_maskstore_ps() in SSE so we mask-store 4-sample uint32 values as raw bytes
             sseFragmentOut,
             _mm_castps_si128(sseWriteMask),
             reinterpret_cast<char*>(pColorBufferAddress));
