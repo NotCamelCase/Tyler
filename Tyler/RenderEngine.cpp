@@ -262,8 +262,6 @@ namespace tyler
 
     void RenderEngine::ApplyPreDrawcallStateInvalidations()
     {
-        //TODO
-
         // Clear VS$ data of each thread
         for (PipelineThread* pThread : m_PipelineThreads)
         {

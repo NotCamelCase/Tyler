@@ -463,9 +463,14 @@ namespace tyler
         ASSERT((minTileY <= maxTileY) && (maxTileY <= m_pRenderEngine->m_NumTilePerColumn));
 
         // Fetch edge equation coefficients computed in triangle setup
-        const glm::vec3 ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0];
-        const glm::vec3 ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1];
-        const glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
+        glm::vec3 ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0];
+        glm::vec3 ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1];
+        glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
+
+        // Normalize edge functions
+        ee0 = ee0 / (glm::abs(ee0.x) + glm::abs(ee0.y));
+        ee1 = ee1 / (glm::abs(ee1.x) + glm::abs(ee1.y));
+        ee2 = ee2 / (glm::abs(ee2.x) + glm::abs(ee2.y));
 
         // Indices of tile corners:
         // LL -> 0  LR -> 1
@@ -473,7 +478,7 @@ namespace tyler
 
         static const glm::vec2 scTileTRCornerOffsets[] =
         {
-            { 0.f, 0.f},                                            // LL -> tile origin
+            { 0.f, 0.f},                                            // LL (origin)
             { m_RenderConfig.m_TileSize, 0.f },                     // LR
             { 0.f, m_RenderConfig.m_TileSize },                     // UL
             { m_RenderConfig.m_TileSize, m_RenderConfig.m_TileSize} // UR
@@ -667,13 +672,18 @@ namespace tyler
                     ASSERT((minBlockY <= maxBlockY) && (maxBlockY <= m_RenderConfig.m_TileSize / g_scPixelBlockSize));
 
                     // Use EE coefficients calculated in TriangleSetup again to rasterize primitive at the 8x8 block level
-                    const glm::vec3 ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0];
-                    const glm::vec3 ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1];
-                    const glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
+                    glm::vec3 ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0];
+                    glm::vec3 ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1];
+                    glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
+
+                    // Normalize edge functions
+                    ee0 = ee0 / (glm::abs(ee0.x) + glm::abs(ee0.y));
+                    ee1 = ee1 / (glm::abs(ee1.x) + glm::abs(ee1.y));
+                    ee2 = ee2 / (glm::abs(ee2.x) + glm::abs(ee2.y));
 
                     static constexpr glm::vec2 scBlockTRCornerOffsets[] =
                     {
-                        { 0.f, 0.f},                                // LL -> tile origin
+                        { 0.f, 0.f},                                // LL (origin)
                         { g_scPixelBlockSize, 0.f },                // LR
                         { 0.f, g_scPixelBlockSize },                // UL
                         { g_scPixelBlockSize, g_scPixelBlockSize}   // UR
@@ -1104,6 +1114,7 @@ namespace tyler
                 // Perform LESS_THAN_EQUAL depth test
                 __m128 sseDepthRes = _mm_cmple_ps(sseZInterpolated, sseDepthCurrent);
 
+                // Pseudo Early-Z test
                 if (_mm_movemask_ps(sseDepthRes) == 0x0)
                 {
                     // No sample being processed passes depth test, skip invoking FS altogether
@@ -1184,6 +1195,7 @@ namespace tyler
         // Perform LESS_THAN_EQUAL depth test
         __m128 sseDepthRes = _mm_cmple_ps(sseZInterpolated, sseDepthCurrent);
 
+        // Pseudo Early-Z test
         if (_mm_movemask_ps(sseDepthRes) == 0x0)
         {
             // No sample within current quad of fragments being processed passes depth test, skip it

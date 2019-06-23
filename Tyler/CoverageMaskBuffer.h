@@ -28,10 +28,10 @@ namespace tyler
         // Global primitive index for fetching EE coefficients, vertex attributes, depth data
         uint32_t            m_PrimIdx;
 
-        // Whether the mask indicates a full-tile, full-block or quad mask
+        // Type of coverage mask (TILE, BLOCK, QUAD)
         CoverageMaskType    m_Type;
 
-        // 4-fragment coverage mask (only applicable when m_Type is QUAD!)
+        // 4-fragment coverage mask (only applies when m_Type is QUAD!)
         uint16_t            m_QuadMask;
     };
 
