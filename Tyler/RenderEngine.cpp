@@ -210,8 +210,6 @@ namespace tyler
             // Prepare for next draw iteration
             ApplyPreDrawIterationStateInvalidations();
 
-            //TODO: What if (numTotalPrims < numThreads)!!!
-
             // How many prims are to be processed this iteration & prims per thread
             uint32_t iterationSize = (numRemainingPrims >= m_RenderConfig.m_MaxDrawIterationSize) ? m_RenderConfig.m_MaxDrawIterationSize : numRemainingPrims;
             uint32_t perIterationRemainder = iterationSize % m_RenderConfig.m_NumPipelineThreads;

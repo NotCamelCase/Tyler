@@ -307,13 +307,13 @@ namespace tyler
                 (v1Clip.y > v1Clip.w) &&
                 (v2Clip.y > v2Clip.w);
 
-            // Clip against near plane 0<z
+            // Clip against 0<z near plane
             bool allOutsideNearPlane =
                 (v0Clip.z < 0.f) &&
                 (v1Clip.z < 0.f) &&
                 (v2Clip.z < 0.f);
 
-            // Clip against far plane z<w
+            // Clip against z>w far plane
             bool allOutsideFarPlane =
                 (v0Clip.z > v0Clip.w) &&
                 (v1Clip.z > v1Clip.w) &&
@@ -419,9 +419,8 @@ namespace tyler
         // Binning in progress now
         m_CurrentState.store(ThreadStatus::DRAWCALL_BINNING, std::memory_order_relaxed);
 
-        uint32_t fbWidth = m_pRenderEngine->m_Framebuffer.m_Width;
-        uint32_t fbHeight = m_pRenderEngine->m_Framebuffer.m_Height;
-        ASSERT((fbWidth > 0u) && (fbHeight > 0u));
+        float fbWidth = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
+        float fbHeight = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
 
         // Compute 2D bbox of the triangle
         Rect2D bbox;
@@ -436,17 +435,17 @@ namespace tyler
             return;
         }
 
+        // Cache bbox of the primitive
+        m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
+
         // Clamp bbox to screen bounds
         bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
-        bbox.m_MaxX = glm::min(static_cast<float>(fbWidth), bbox.m_MaxX);
+        bbox.m_MaxX = glm::min(fbWidth, bbox.m_MaxX);
         bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
-        bbox.m_MaxY = glm::min(static_cast<float>(fbHeight), bbox.m_MaxY);
+        bbox.m_MaxY = glm::min(fbHeight, bbox.m_MaxY);
 
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
         ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
-
-        // Cache bbox of the primitive
-        m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
 
         // Given a tile size and frame buffer dimensions, find min/max range of the tiles that fall within bbox computed above
         // which we're going to iterate over, in order to determine if the primitive should be binned or not
@@ -518,25 +517,23 @@ namespace tyler
         // once and re-use it by stepping from it within following nested loop
 
         // Tile origin
-        const float tilePosX = m_pRenderEngine->m_TileList[
-            m_pRenderEngine->GetGlobalTileIndex(minTileX, minTileY)].m_PosX;
-        const float tilePosY = m_pRenderEngine->m_TileList[
-            m_pRenderEngine->GetGlobalTileIndex(minTileX, minTileY)].m_PosY;
+        const float tilePosX = static_cast<float>(glm::min(fbWidth, static_cast<float>(minTileX * m_RenderConfig.m_TileSize)));
+        const float tilePosY = static_cast<float>(glm::min(fbHeight, static_cast<float>(minTileY * m_RenderConfig.m_TileSize)));
 
         const float edgeFunc0 =
+            ee0.z +
             (ee0.x * (tilePosX + scTileTRCornerOffsets[edge0TRCorner].x)) +
-            (ee0.y * (tilePosY + scTileTRCornerOffsets[edge0TRCorner].y)) +
-            ee0.z;
+            (ee0.y * (tilePosY + scTileTRCornerOffsets[edge0TRCorner].y));
 
         const float edgeFunc1 =
+            ee1.z +
             (ee1.x * (tilePosX + scTileTRCornerOffsets[edge1TRCorner].x)) +
-            (ee1.y * (tilePosY + scTileTRCornerOffsets[edge1TRCorner].y)) +
-            ee1.z;
-
+            (ee1.y * (tilePosY + scTileTRCornerOffsets[edge1TRCorner].y));
+            
         const float edgeFunc2 =
+            ee2.z +
             (ee2.x * (tilePosX + scTileTRCornerOffsets[edge2TRCorner].x)) +
-            (ee2.y * (tilePosY + scTileTRCornerOffsets[edge2TRCorner].y)) +
-            ee2.z;
+            (ee2.y * (tilePosY + scTileTRCornerOffsets[edge2TRCorner].y));
 
         // Iterate over calculated range of tiles
         for (uint32_t ty = minTileY, tyy = 0; ty < maxTileY; ty++, tyy++)
@@ -726,19 +723,19 @@ namespace tyler
                     const float firstBlockWithinBBoxY = tilePosY + minBlockY * g_scPixelBlockSize;
 
                     const float edgeFunc0 =
+                        ee0.z +
                         (ee0.x * (firstBlockWithinBBoxX + scBlockTRCornerOffsets[edge0TRCorner].x)) +
-                        (ee0.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge0TRCorner].y)) +
-                        ee0.z;
+                        (ee0.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge0TRCorner].y));
 
                     const float edgeFunc1 =
+                        ee1.z +
                         (ee1.x * (firstBlockWithinBBoxX + scBlockTRCornerOffsets[edge1TRCorner].x)) +
-                        (ee1.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge1TRCorner].y)) +
-                        ee1.z;
+                        (ee1.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge1TRCorner].y));
 
                     const float edgeFunc2 =
+                        ee2.z +
                         (ee2.x * (firstBlockWithinBBoxX + scBlockTRCornerOffsets[edge2TRCorner].x)) +
-                        (ee2.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge2TRCorner].y)) +
-                        ee2.z;
+                        (ee2.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge2TRCorner].y));
 
                     // Iterate over calculated range of blocks within the tile
                     for (uint32_t by = minBlockY, byy = 0; by < maxBlockY; by++, byy++)
@@ -1231,7 +1228,7 @@ namespace tyler
         m_pRenderEngine->UpdateColorBuffer(sseWriteMask, fragmentOutput, pMask->m_SampleX, pMask->m_SampleY);
     }
 
-    void PipelineThread::ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, uint32_t width, uint32_t height, Rect2D* pBbox) const
+    void PipelineThread::ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height, Rect2D* pBbox) const
     {
         ASSERT(pBbox != nullptr);
 
