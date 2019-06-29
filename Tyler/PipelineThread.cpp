@@ -141,9 +141,9 @@ namespace tyler
         uint32_t vertexStride = m_pRenderEngine->m_VertexInputStride;
         uint32_t vertexOffset = m_ActiveDrawParams.m_VertexOffset;
 
-        VertexAttributes* pTempVertexAttrib0 = nullptr;
-        VertexAttributes* pTempVertexAttrib1 = nullptr;
-        VertexAttributes* pTempVertexAttrib2 = nullptr;
+        VertexAttributes* pTempVertexAttrib0 = &m_TempVertexAttributes[0];
+        VertexAttributes* pTempVertexAttrib1 = &m_TempVertexAttributes[1];
+        VertexAttributes* pTempVertexAttrib2 = &m_TempVertexAttributes[2];
 
         VertexShader VS = m_pRenderEngine->m_VertexShader;
         ASSERT(VS != nullptr);
@@ -154,10 +154,6 @@ namespace tyler
         if constexpr (!g_scVertexShaderCacheEnabled)
         {
             // VS$ disabled, don't look up vertices in the cache
-
-            pTempVertexAttrib0 = &m_TempVertexAttributes[0];
-            pTempVertexAttrib1 = &m_TempVertexAttributes[1];
-            pTempVertexAttrib2 = &m_TempVertexAttributes[2];
 
             // Fetch pointers to vertex input that'll be passed to vertex shader
             uint8_t* pVertIn0 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 0)]];
@@ -180,14 +176,27 @@ namespace tyler
             {
                 // Vertex 0 is found in the cache, skip VS and fetch cached data
                 *pV0Clip = m_VertexCacheEntries[cacheEntry0].m_ClipPos;
-                pTempVertexAttrib0 = &m_VertexCacheEntries[cacheEntry0].m_VertexAttribs;
+
+                // Copy vertex (only active!) attributes
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes2,
+                    m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes2,
+                    sizeof(glm::vec2)* m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes3,
+                    m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes3,
+                    sizeof(glm::vec3)* m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes4,
+                    m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes4,
+                    sizeof(glm::vec4)* m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
             }
             else
             {
                 // Vertex 0 is not found in the cache,
                 // first invoke VS and then cache the clip-space position & vertex attributes
-
-                pTempVertexAttrib0 = &m_TempVertexAttributes[0];
 
                 uint8_t* pVertIn0 = &pVertexBuffer[vertexStride * vertexIdx0];
                 *pV0Clip = VS(pVertIn0, pTempVertexAttrib0, pConstantBuffer);
@@ -200,14 +209,27 @@ namespace tyler
             {
                 // Vertex 1 is found in the cache, skip VS and fetch cached data
                 *pV1Clip = m_VertexCacheEntries[cacheEntry1].m_ClipPos;
-                pTempVertexAttrib1 = &m_VertexCacheEntries[cacheEntry1].m_VertexAttribs;
+                
+                // Copy vertex (only active!) attributes
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes2,
+                    m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes2,
+                    sizeof(glm::vec2)* m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes3,
+                    m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes3,
+                    sizeof(glm::vec3)* m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes4,
+                    m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes4,
+                    sizeof(glm::vec4)* m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
             }
             else
             {
                 // Vertex 1 is not found in the cache,
                 // first invoke VS and then cache the clip-space position & vertex attributes
-
-                pTempVertexAttrib1 = &m_TempVertexAttributes[1];
 
                 uint8_t* pVertIn1 = &pVertexBuffer[vertexStride * vertexIdx1];
                 *pV1Clip = VS(pVertIn1, pTempVertexAttrib1, pConstantBuffer);
@@ -220,14 +242,27 @@ namespace tyler
             {
                 // Vertex 2 is found in the cache, skip VS and fetch cached data
                 *pV2Clip = m_VertexCacheEntries[cacheEntry2].m_ClipPos;
-                pTempVertexAttrib2 = &m_VertexCacheEntries[cacheEntry2].m_VertexAttribs;
+                
+                // Copy vertex (only active!) attributes
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes2,
+                    m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes2,
+                    sizeof(glm::vec2)* m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes3,
+                    m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes3,
+                    sizeof(glm::vec3)* m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+
+                memcpy(
+                    pTempVertexAttrib0->m_Attributes4,
+                    m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes4,
+                    sizeof(glm::vec4)* m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
             }
             else
             {
                 // Vertex 2 is not found in the cache,
                 // first invoke VS and then cache the clip-space position & vertex attributes
-
-                pTempVertexAttrib2 = &m_TempVertexAttributes[2];
 
                 uint8_t* pVertIn2 = &pVertexBuffer[vertexStride * vertexIdx2];
                 *pV2Clip = VS(pVertIn2, pTempVertexAttrib2, pConstantBuffer);
@@ -256,12 +291,13 @@ namespace tyler
 
     bool PipelineThread::PerformVertexCacheLookup(uint32_t primIdx, uint32_t* pCachedIdx)
     {
-        // Go through all entries
+        // Go through all cached entries
         for (uint32_t idx = 0; idx < m_NumVertexCacheEntries; idx++)
         {
             if (m_CachedVertexIndices[idx] == primIdx)
             {
-                // Vertex is found to be cached, just return its entry index within the cache
+                // Vertex is found in VS$, just return its entry index within the cache
+                LOG("Prim %d found in the VS$\n", primIdx);
 
                 *pCachedIdx = idx;
                 return true;
