@@ -517,8 +517,8 @@ namespace tyler
         // once and re-use it by stepping from it within following nested loop
 
         // Tile origin
-        const float tilePosX = static_cast<float>(glm::min(fbWidth, static_cast<float>(minTileX * m_RenderConfig.m_TileSize)));
-        const float tilePosY = static_cast<float>(glm::min(fbHeight, static_cast<float>(minTileY * m_RenderConfig.m_TileSize)));
+        const float tilePosX = glm::min(fbWidth, static_cast<float>(minTileX * m_RenderConfig.m_TileSize));
+        const float tilePosY = glm::min(fbHeight, static_cast<float>(minTileY * m_RenderConfig.m_TileSize));
 
         const float edgeFunc0 =
             ee0.z +
@@ -1396,36 +1396,40 @@ namespace tyler
             const glm::vec3& attrib3Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][(primIdx * 4) + 3];
 
             // vec4::x attribute to be interpolated
-            __m128 sseAttrib0 = _mm_set_ps1(attrib0Vec3.x);
-            __m128 sseAttrib1 = _mm_set_ps1(attrib0Vec3.y);
-            __m128 sseAttrib2 = _mm_set_ps1(attrib0Vec3.z);
+            __m128 sseAttrib0X = _mm_set_ps1(attrib0Vec3.x);
+            __m128 sseAttrib1X = _mm_set_ps1(attrib0Vec3.y);
+            __m128 sseAttrib2X = _mm_set_ps1(attrib0Vec3.z);
 
-            __m128 sseVec4AttribX = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec4AttribX = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0X, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1X, ssef1XY), sseAttrib2X));
 
             // vec4::y attribute to be interpolated
-            sseAttrib0 = _mm_set_ps1(attrib1Vec3.x);
-            sseAttrib1 = _mm_set_ps1(attrib1Vec3.y);
-            sseAttrib2 = _mm_set_ps1(attrib1Vec3.z);
+            __m128 sseAttrib0Y = _mm_set_ps1(attrib1Vec3.x);
+            __m128 sseAttrib1Y = _mm_set_ps1(attrib1Vec3.y);
+            __m128 sseAttrib2Y = _mm_set_ps1(attrib1Vec3.z);
 
-            __m128 sseVec4AttribY = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec4AttribY = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0Y, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1Y, ssef1XY), sseAttrib2Y));
 
             // vec4::z attribute to be interpolated
-            sseAttrib0 = _mm_set_ps1(attrib2Vec3.x);
-            sseAttrib1 = _mm_set_ps1(attrib2Vec3.y);
-            sseAttrib2 = _mm_set_ps1(attrib2Vec3.z);
+            __m128 sseAttrib0Z = _mm_set_ps1(attrib2Vec3.x);
+            __m128 sseAttrib1Z = _mm_set_ps1(attrib2Vec3.y);
+            __m128 sseAttrib2Z = _mm_set_ps1(attrib2Vec3.z);
 
-            __m128 sseVec4AttribZ = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec4AttribZ = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0Z, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1Z, ssef1XY), sseAttrib2Z));
 
             // vec4::w attribute to be interpolated
-            sseAttrib0 = _mm_set_ps1(attrib2Vec3.x);
-            sseAttrib1 = _mm_set_ps1(attrib2Vec3.y);
-            sseAttrib2 = _mm_set_ps1(attrib2Vec3.z);
+            __m128 sseAttrib0W = _mm_set_ps1(attrib2Vec3.x);
+            __m128 sseAttrib1W = _mm_set_ps1(attrib2Vec3.y);
+            __m128 sseAttrib2W = _mm_set_ps1(attrib2Vec3.z);
 
-            __m128 sseVec3AttribW = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec3AttribW = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0W, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1W, ssef1XY), sseAttrib2W));
 
             pInterpolatedAttributes[i].m_Vec4Attributes->m_SSEX = sseVec4AttribX;
             pInterpolatedAttributes[i].m_Vec4Attributes->m_SSEY = sseVec4AttribY;
@@ -1442,28 +1446,31 @@ namespace tyler
             const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][(primIdx * 3) + 2];
 
             // vec3::x attribute to be interpolated
-            __m128 sseAttrib0 = _mm_set_ps1(attrib0Vec3.x);
-            __m128 sseAttrib1 = _mm_set_ps1(attrib0Vec3.y);
-            __m128 sseAttrib2 = _mm_set_ps1(attrib0Vec3.z);
+            __m128 sseAttrib0X = _mm_set_ps1(attrib0Vec3.x);
+            __m128 sseAttrib1X = _mm_set_ps1(attrib0Vec3.y);
+            __m128 sseAttrib2X = _mm_set_ps1(attrib0Vec3.z);
 
-            __m128 sseVec3AttribX = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec3AttribX = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0X, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1X, ssef1XY), sseAttrib2X));
 
             // vec3::y attribute to be interpolated
-            sseAttrib0 = _mm_set_ps1(attrib1Vec3.x);
-            sseAttrib1 = _mm_set_ps1(attrib1Vec3.y);
-            sseAttrib2 = _mm_set_ps1(attrib1Vec3.z);
+            __m128 sseAttrib0Y = _mm_set_ps1(attrib1Vec3.x);
+            __m128 sseAttrib1Y = _mm_set_ps1(attrib1Vec3.y);
+            __m128 sseAttrib2Y = _mm_set_ps1(attrib1Vec3.z);
 
-            __m128 sseVec3AttribY = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec3AttribY = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0Y, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1Y, ssef1XY), sseAttrib2Y));
 
             // vec3::z attribute to be interpolated
-            sseAttrib0 = _mm_set_ps1(attrib2Vec3.x);
-            sseAttrib1 = _mm_set_ps1(attrib2Vec3.y);
-            sseAttrib2 = _mm_set_ps1(attrib2Vec3.z);
+            __m128 sseAttrib0Z = _mm_set_ps1(attrib2Vec3.x);
+            __m128 sseAttrib1Z = _mm_set_ps1(attrib2Vec3.y);
+            __m128 sseAttrib2Z = _mm_set_ps1(attrib2Vec3.z);
 
-            __m128 sseVec3AttribZ = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec3AttribZ = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0Z, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1Z, ssef1XY), sseAttrib2Z));
 
             pInterpolatedAttributes[i].m_Vec3Attributes->m_SSEX = sseVec3AttribX;
             pInterpolatedAttributes[i].m_Vec3Attributes->m_SSEY = sseVec3AttribY;
@@ -1479,20 +1486,22 @@ namespace tyler
             const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute2Deltas[i][(primIdx * 2) + 2];
 
             // vec3::x attribute to be interpolated
-            __m128 sseAttrib0 = _mm_set_ps1(attrib0Vec3.x);
-            __m128 sseAttrib1 = _mm_set_ps1(attrib0Vec3.y);
-            __m128 sseAttrib2 = _mm_set_ps1(attrib0Vec3.z);
+            __m128 sseAttrib0X = _mm_set_ps1(attrib0Vec3.x);
+            __m128 sseAttrib1X = _mm_set_ps1(attrib0Vec3.y);
+            __m128 sseAttrib2X = _mm_set_ps1(attrib0Vec3.z);
 
-            __m128 sseVec2AttribX = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec2AttribX = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0X, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1X, ssef1XY), sseAttrib2X));
 
             // vec3::y attribute to be interpolated
-            sseAttrib0 = _mm_set_ps1(attrib1Vec3.x);
-            sseAttrib1 = _mm_set_ps1(attrib1Vec3.y);
-            sseAttrib2 = _mm_set_ps1(attrib1Vec3.z);
+            __m128 sseAttrib0Y = _mm_set_ps1(attrib1Vec3.x);
+            __m128 sseAttrib1Y = _mm_set_ps1(attrib1Vec3.y);
+            __m128 sseAttrib2Y = _mm_set_ps1(attrib1Vec3.z);
 
-            __m128 sseVec2AttribY = _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
-                _mm_add_ps(_mm_mul_ps(sseAttrib1, ssef1XY), sseAttrib2));
+            __m128 sseVec2AttribY = _mm_add_ps(
+                _mm_mul_ps(sseAttrib0Y, ssef0XY),
+                _mm_add_ps(_mm_mul_ps(sseAttrib1Y, ssef1XY), sseAttrib2Y));
 
             pInterpolatedAttributes[i].m_Vec2Attributes->m_SSEX = sseVec2AttribX;
             pInterpolatedAttributes[i].m_Vec2Attributes->m_SSEY = sseVec2AttribY;

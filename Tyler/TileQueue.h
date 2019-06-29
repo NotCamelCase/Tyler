@@ -60,6 +60,7 @@ namespace tyler
             m_WriteIdx.store(0u, std::memory_order_relaxed);
             m_FetchIdx.store(0u, std::memory_order_relaxed);
 
+            // Clear tile indices assigned previously
             memset(m_pData, g_scInvalidTileIndex, sizeof(uint32_t) * m_DataSize);
         }
 

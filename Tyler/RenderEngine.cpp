@@ -440,8 +440,8 @@ namespace tyler
         uint32_t depthPitch = m_Framebuffer.m_Width;
         float* pDepthBufferAddress = &m_Framebuffer.m_pDepthBuffer[sampleX + sampleY * depthPitch];
 
-        // Mask-write interpolated Z values
-        _mm_maskmoveu_si128(
+        // Mask-store interpolated Z values
+        _mm_maskmoveu_si128( // There is no _mm_maskstore_ps() in SSE so we mask-store 4-sample uint32 values as raw bytes
             sseZInterpolated,
             _mm_castps_si128(sseWriteMask),
             reinterpret_cast<char*>(pDepthBufferAddress));
@@ -489,8 +489,8 @@ namespace tyler
         uint32_t colorPitch = m_Framebuffer.m_Width * 4;
         uint8_t* pColorBufferAddress = &m_Framebuffer.m_pColorBuffer[4 * sampleX + sampleY * colorPitch];
 
-        // Update color buffer values of the samples which pass depth test
-        _mm_maskmoveu_si128( // There is no _mm_maskstore_ps() in SSE so we mask-store 4-sample uint32 values as raw bytes
+        // Mask-store 4-sample fragment values
+        _mm_maskmoveu_si128(
             sseFragmentOut,
             _mm_castps_si128(sseWriteMask),
             reinterpret_cast<char*>(pColorBufferAddress));
