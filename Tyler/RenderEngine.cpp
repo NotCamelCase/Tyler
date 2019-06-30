@@ -75,15 +75,16 @@ namespace tyler
         //TODO: Clear frame buffer tiles!!!
         //TODO: Optimize render target clearing!!!
 
-        const glm::uvec4 color = {
-            static_cast<uint8_t>(colorValue.x * 255.f),
-            static_cast<uint8_t>(colorValue.y * 255.f),
-            static_cast<uint8_t>(colorValue.z * 255.f),
-            static_cast<uint8_t>(colorValue.w * 255.f),
-        };
-
         if (clearColor)
         {
+            const glm::uvec4 color =
+            {
+                static_cast<uint8_t>(colorValue.x * 255.f),
+                static_cast<uint8_t>(colorValue.y * 255.f),
+                static_cast<uint8_t>(colorValue.z * 255.f),
+                static_cast<uint8_t>(colorValue.w * 255.f),
+            };
+
             const uint32_t fbSize = m_Framebuffer.m_Width * m_Framebuffer.m_Height * 4 /*R8G8B8A8_UNORM*/;
 
             for (uint32_t i = 0; i < fbSize; i += 4)

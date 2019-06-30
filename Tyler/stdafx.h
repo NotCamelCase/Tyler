@@ -9,7 +9,6 @@
 
 //#define GLM_FORCE_MESSAGES
 //#define GLM_FORCE_ALIGNED_GENTYPES //TODO: Force aligned vector types!
-#define GLM_FORCE_XYZW_ONLY //TODO: This flag disables GLM SIMD support!
 #define GLM_FORCE_INLINE
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
