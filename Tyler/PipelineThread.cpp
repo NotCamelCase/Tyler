@@ -181,17 +181,17 @@ namespace tyler
                 memcpy(
                     pTempVertexAttrib0->m_Attributes2,
                     m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes2,
-                    sizeof(glm::vec2)* m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+                    sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
 
                 memcpy(
                     pTempVertexAttrib0->m_Attributes3,
                     m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes3,
-                    sizeof(glm::vec3)* m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+                    sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
 
                 memcpy(
                     pTempVertexAttrib0->m_Attributes4,
                     m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes4,
-                    sizeof(glm::vec4)* m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+                    sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
             }
             else
             {
@@ -212,19 +212,19 @@ namespace tyler
                 
                 // Copy vertex (only active!) attributes
                 memcpy(
-                    pTempVertexAttrib0->m_Attributes2,
+                    pTempVertexAttrib1->m_Attributes2,
                     m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes2,
-                    sizeof(glm::vec2)* m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+                    sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
 
                 memcpy(
-                    pTempVertexAttrib0->m_Attributes3,
+                    pTempVertexAttrib1->m_Attributes3,
                     m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes3,
-                    sizeof(glm::vec3)* m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+                    sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
 
                 memcpy(
-                    pTempVertexAttrib0->m_Attributes4,
+                    pTempVertexAttrib1->m_Attributes4,
                     m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes4,
-                    sizeof(glm::vec4)* m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+                    sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
             }
             else
             {
@@ -245,19 +245,19 @@ namespace tyler
                 
                 // Copy vertex (only active!) attributes
                 memcpy(
-                    pTempVertexAttrib0->m_Attributes2,
+                    pTempVertexAttrib2->m_Attributes2,
                     m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes2,
-                    sizeof(glm::vec2)* m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+                    sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
 
                 memcpy(
-                    pTempVertexAttrib0->m_Attributes3,
+                    pTempVertexAttrib2->m_Attributes3,
                     m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes3,
-                    sizeof(glm::vec3)* m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+                    sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
 
                 memcpy(
-                    pTempVertexAttrib0->m_Attributes4,
+                    pTempVertexAttrib2->m_Attributes4,
                     m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes4,
-                    sizeof(glm::vec4)* m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+                    sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
             }
             else
             {
