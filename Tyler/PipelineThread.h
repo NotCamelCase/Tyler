@@ -38,7 +38,7 @@ namespace tyler
         void ExecuteVertexShader(uint32_t drawIdx, uint32_t primIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip);
 
         // Clipper (full-triangle only)
-        bool ExecuteFullTriangleClipping(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
+        bool ExecuteFullTriangleClipping(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
 
         // Triangle Setup + Culling
         bool ExecuteTriangleSetupAndCull(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
@@ -97,9 +97,10 @@ namespace tyler
             const __m128& ssef1XY,
             InterpolatedAttributes* pInterpolationAttributes);
 
-        // Utilitie for VS$
+        // Utilities for VS$
         bool PerformVertexCacheLookup(uint32_t primIdx, uint32_t* pCachedIdx);
         void CacheVertexData(uint32_t vertexIdx, const glm::vec4& vClip, const tyler::VertexAttributes& tempVertexAttrib);
+        void CopyVertexData(glm::vec4* pVClip, uint32_t cacheEntry, VertexAttributes* pTempVertexAttrib);
 
         // Unique RenderEngine instance
         RenderEngine*               m_pRenderEngine = nullptr;

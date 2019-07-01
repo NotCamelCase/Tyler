@@ -99,7 +99,7 @@ namespace tyler
         std::atomic<uint32_t>   m_FetchIdx;
 
         // Backing memory for tile indices
-        uint32_t*               m_pData = nullptr;
         uint32_t                m_DataSize = 0u;
+        uint32_t*               m_pData = nullptr;
     };
 }

@@ -8,8 +8,6 @@ namespace tyler
         :
         m_RenderConfig(renderConfig)
     {
-        //TODO: Init everything properly!
-
         // Allocate triangle setup data big enough to hold all possible in-flight primitives
         m_SetupBuffers.m_pEdgeCoefficients = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize * 3 /* 3 vertices */];
         m_SetupBuffers.m_pInterpolatedZValues = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize];
@@ -24,8 +22,6 @@ namespace tyler
             m_SetupBuffers.m_Attribute3Deltas[i] = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize * 3 /*xyz*/];
             m_SetupBuffers.m_Attribute2Deltas[i] = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize * 2 /*xy*/];
         }
-
-        //TODO: Attributes interpolation deltas!
 
         // Create PipelineThreads that will spawn their own worker thread to implement the pipeline stages in parallel
         m_PipelineThreads.resize(m_RenderConfig.m_NumPipelineThreads);

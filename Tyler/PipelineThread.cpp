@@ -59,7 +59,7 @@ namespace tyler
             ExecuteVertexShader(drawIdx, primIdx, &v0Clip, &v1Clip, &v2Clip);
 
             // CLIPPER
-            if (!ExecuteFullTriangleClipping(v0Clip, v1Clip, v2Clip))
+            if (!ExecuteFullTriangleClipping(primIdx, v0Clip, v1Clip, v2Clip))
             {
                 // Triangle clipped, proceed iteration with next primitive
                 continue;
@@ -148,9 +148,6 @@ namespace tyler
         VertexShader VS = m_pRenderEngine->m_VertexShader;
         ASSERT(VS != nullptr);
 
-        //TODO: Optimize to copy only active attributes for VS$!
-        //TODO: Constant buffers to be passed to VS/FS!!!
-
         if constexpr (!g_scVertexShaderCacheEnabled)
         {
             // VS$ disabled, don't look up vertices in the cache
@@ -171,27 +168,14 @@ namespace tyler
             uint32_t cacheEntry1 = UINT32_MAX;
             uint32_t cacheEntry2 = UINT32_MAX;
 
-            uint32_t vertexIdx0 = pIndexBuffer[vertexOffset + (3 * drawIdx)];
+            uint32_t vertexIdx0 = pIndexBuffer[vertexOffset + (3 * drawIdx + 0)];
+            uint32_t vertexIdx1 = pIndexBuffer[vertexOffset + (3 * drawIdx + 1)];
+            uint32_t vertexIdx2 = pIndexBuffer[vertexOffset + (3 * drawIdx + 2)];
+
             if (PerformVertexCacheLookup(vertexIdx0, &cacheEntry0))
             {
                 // Vertex 0 is found in the cache, skip VS and fetch cached data
-                *pV0Clip = m_VertexCacheEntries[cacheEntry0].m_ClipPos;
-
-                // Copy vertex (only active!) attributes
-                memcpy(
-                    pTempVertexAttrib0->m_Attributes2,
-                    m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes2,
-                    sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
-
-                memcpy(
-                    pTempVertexAttrib0->m_Attributes3,
-                    m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes3,
-                    sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
-
-                memcpy(
-                    pTempVertexAttrib0->m_Attributes4,
-                    m_VertexCacheEntries[cacheEntry0].m_VertexAttribs.m_Attributes4,
-                    sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+                CopyVertexData(pV0Clip, cacheEntry0, pTempVertexAttrib0);
             }
             else
             {
@@ -204,27 +188,10 @@ namespace tyler
                 CacheVertexData(vertexIdx0, *pV0Clip, *pTempVertexAttrib0);
             }
 
-            uint32_t vertexIdx1 = pIndexBuffer[vertexOffset + (3 * drawIdx + 1)];
             if (PerformVertexCacheLookup(vertexIdx1, &cacheEntry1))
             {
                 // Vertex 1 is found in the cache, skip VS and fetch cached data
-                *pV1Clip = m_VertexCacheEntries[cacheEntry1].m_ClipPos;
-                
-                // Copy vertex (only active!) attributes
-                memcpy(
-                    pTempVertexAttrib1->m_Attributes2,
-                    m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes2,
-                    sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
-
-                memcpy(
-                    pTempVertexAttrib1->m_Attributes3,
-                    m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes3,
-                    sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
-
-                memcpy(
-                    pTempVertexAttrib1->m_Attributes4,
-                    m_VertexCacheEntries[cacheEntry1].m_VertexAttribs.m_Attributes4,
-                    sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+                CopyVertexData(pV1Clip, cacheEntry1, pTempVertexAttrib1);
             }
             else
             {
@@ -237,27 +204,11 @@ namespace tyler
                 CacheVertexData(vertexIdx1, *pV1Clip, *pTempVertexAttrib1);
             }
 
-            uint32_t vertexIdx2 = pIndexBuffer[vertexOffset + (3 * drawIdx + 2)];
+            
             if (PerformVertexCacheLookup(vertexIdx2, &cacheEntry2))
             {
                 // Vertex 2 is found in the cache, skip VS and fetch cached data
-                *pV2Clip = m_VertexCacheEntries[cacheEntry2].m_ClipPos;
-                
-                // Copy vertex (only active!) attributes
-                memcpy(
-                    pTempVertexAttrib2->m_Attributes2,
-                    m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes2,
-                    sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
-
-                memcpy(
-                    pTempVertexAttrib2->m_Attributes3,
-                    m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes3,
-                    sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
-
-                memcpy(
-                    pTempVertexAttrib2->m_Attributes4,
-                    m_VertexCacheEntries[cacheEntry2].m_VertexAttribs.m_Attributes4,
-                    sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+                CopyVertexData(pV2Clip, cacheEntry2, pTempVertexAttrib2);
             }
             else
             {
@@ -275,6 +226,28 @@ namespace tyler
         CalculateInterpolationCoefficients(primIdx, *pTempVertexAttrib0, *pTempVertexAttrib1, *pTempVertexAttrib2);
     }
 
+    void PipelineThread::CopyVertexData(glm::vec4* pVClip, uint32_t cacheEntry, VertexAttributes* pTempVertexAttrib)
+    {
+        // Copy cached clip-space positions
+        *pVClip = m_VertexCacheEntries[cacheEntry].m_ClipPos;
+
+        // Copy vertex (only active!) attributes
+        memcpy(
+            pTempVertexAttrib->m_Attributes2,
+            m_VertexCacheEntries[cacheEntry].m_VertexAttribs.m_Attributes2,
+            sizeof(glm::vec2) * m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes);
+
+        memcpy(
+            pTempVertexAttrib->m_Attributes3,
+            m_VertexCacheEntries[cacheEntry].m_VertexAttribs.m_Attributes3,
+            sizeof(glm::vec3) * m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes);
+
+        memcpy(
+            pTempVertexAttrib->m_Attributes4,
+            m_VertexCacheEntries[cacheEntry].m_VertexAttribs.m_Attributes4,
+            sizeof(glm::vec4) * m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes);
+    }
+
     void PipelineThread::CacheVertexData(uint32_t vertexIdx, const glm::vec4& vClip, const tyler::VertexAttributes& tempVertexAttrib)
     {
         // Check if VS$ cache has space and if so, append new vertex data
@@ -289,15 +262,15 @@ namespace tyler
         }
     }
 
-    bool PipelineThread::PerformVertexCacheLookup(uint32_t primIdx, uint32_t* pCachedIdx)
+    bool PipelineThread::PerformVertexCacheLookup(uint32_t vertexIdx, uint32_t* pCachedIdx)
     {
         // Go through all cached entries
         for (uint32_t idx = 0; idx < m_NumVertexCacheEntries; idx++)
         {
-            if (m_CachedVertexIndices[idx] == primIdx)
+            if (m_CachedVertexIndices[idx] == vertexIdx)
             {
                 // Vertex is found in VS$, just return its entry index within the cache
-                LOG("Prim %d found in the VS$\n", primIdx);
+                LOG("Vertex %d found in the VS$\n", vertexIdx);
 
                 *pCachedIdx = idx;
                 return true;
@@ -307,7 +280,7 @@ namespace tyler
         return false;
     }
 
-    bool PipelineThread::ExecuteFullTriangleClipping(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip)
+    bool PipelineThread::ExecuteFullTriangleClipping(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip)
     {
         if constexpr (g_scFullTriangleClippingEnabled)
         {
@@ -371,15 +344,73 @@ namespace tyler
             {
                 // MUSTCLIP or TRIVIALACCEPT
 
-                // Primitive is partially or completely inside view frustum, but we don't check for this
-                // so we must rasterize it further
-                return true;
+                // Compute bounding box
+
+                float width = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
+                float height = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
+
+                Rect2D bbox;
+                ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height, &bbox);
+
+                if ((bbox.m_MinX >= width) ||
+                    (bbox.m_MaxX < 0.f) ||
+                    (bbox.m_MinY >= height) ||
+                    (bbox.m_MaxY < 0.f))
+                {
+                    // If tri's bbox exceeds screen bounds, discard it
+                    return false;
+                }
+                else
+                {
+                    // Clamp bbox to screen bounds
+                    bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
+                    bbox.m_MaxX = glm::min(width, bbox.m_MaxX);
+                    bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
+                    bbox.m_MaxY = glm::min(height, bbox.m_MaxY);
+
+                    // Cache bbox of the primitive
+                    m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
+
+                    // Primitive is partially or completely inside view frustum, but we don't check for this
+                    // so we must rasterize it further
+                    return true;
+                }
             }
         }
         else
         {
             // FT clipping disabled
-            return true;
+
+            // Compute bounding box
+
+            float width = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
+            float height = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
+
+            Rect2D bbox;
+            ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height, &bbox);
+
+            if ((bbox.m_MinX >= width) ||
+                (bbox.m_MaxX < 0.f) ||
+                (bbox.m_MinY >= height) ||
+                (bbox.m_MaxY < 0.f))
+            {
+                // If tri's bbox exceeds screen bounds, discard it
+                return false;
+            }
+            else
+            {
+                // Clamp bbox to screen bounds
+                bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
+                bbox.m_MaxX = glm::min(width, bbox.m_MaxX);
+                bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
+                bbox.m_MaxY = glm::min(height, bbox.m_MaxY);
+
+                // Cache bbox of the primitive
+                m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
+
+                // No clipping applied
+                return true;
+            }
         }
     }
 
@@ -458,27 +489,8 @@ namespace tyler
         float fbWidth = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
         float fbHeight = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
 
-        // Compute 2D bbox of the triangle
-        Rect2D bbox;
-        ComputeBoundingBox(v0Clip, v1Clip, v2Clip, fbWidth, fbHeight, &bbox);
-
-        if ((bbox.m_MinX >= fbWidth) ||
-            (bbox.m_MaxX < 0.f) ||
-            (bbox.m_MinY >= fbHeight) ||
-            (bbox.m_MaxY < 0.f))
-        {
-            // If tri's bbox exceeds screen bounds, discard it
-            return;
-        }
-
-        // Cache bbox of the primitive
-        m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
-
-        // Clamp bbox to screen bounds
-        bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
-        bbox.m_MaxX = glm::min(fbWidth, bbox.m_MaxX);
-        bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
-        bbox.m_MaxY = glm::min(fbHeight, bbox.m_MaxY);
+        // Fetch bbox of the triangle computed during clipping
+        Rect2D bbox = m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx];
 
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
         ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
@@ -511,7 +523,7 @@ namespace tyler
         // LL -> 0  LR -> 1
         // UL -> 2  UR -> 3
 
-        static const glm::vec2 scTileTRCornerOffsets[] =
+        static const glm::vec2 scTileCornerOffsets[] =
         {
             { 0.f, 0.f},                                            // LL (origin)
             { m_RenderConfig.m_TileSize, 0.f },                     // LR
@@ -519,35 +531,19 @@ namespace tyler
             { m_RenderConfig.m_TileSize, m_RenderConfig.m_TileSize} // UR
         };
 
-        static const glm::vec2 scTileTACornerOffsets[] =
-        {
-            { -static_cast<float>(m_RenderConfig.m_TileSize), -static_cast<float>(m_RenderConfig.m_TileSize) },   // TR = 3 -> TA = 0
-            { static_cast<float>(m_RenderConfig.m_TileSize), -static_cast<float>(m_RenderConfig.m_TileSize) },    // TR = 2 -> TA = 1
-            { -static_cast<float>(m_RenderConfig.m_TileSize), static_cast<float>(m_RenderConfig.m_TileSize) },    // TR = 1 -> TA = 2
-            { static_cast<float>(m_RenderConfig.m_TileSize), static_cast<float>(m_RenderConfig.m_TileSize) }      // TR = 0 -> TA = 3
-        };
-
         // (x, y) -> sample location | (a, b, c) -> edge equation coefficients
         // E(x, y) = (a * x) + (b * y) + c
         // E(x + s, y + t) = E(x, y) + (a * s) + (b * t)
 
-        // Based on edge normal n=(a, b), set up tile TR corners for each edge once
+        // Based on edge normal n=(a, b), set up tile TR corners for each edge
         const uint8_t edge0TRCorner = (ee0.y >= 0.f) ? ((ee0.x >= 0.f) ? 3u : 2u) : (ee0.x >= 0.f) ? 1u : 0u;
         const uint8_t edge1TRCorner = (ee1.y >= 0.f) ? ((ee1.x >= 0.f) ? 3u : 2u) : (ee1.x >= 0.f) ? 1u : 0u;
         const uint8_t edge2TRCorner = (ee2.y >= 0.f) ? ((ee2.x >= 0.f) ? 3u : 2u) : (ee2.x >= 0.f) ? 1u : 0u;
 
-        // TA corner is one diagonal from TR corner calculated above
+        // TA corner is the one diagonal from TR corner calculated above
         const uint8_t edge0TACorner = 3u - edge0TRCorner;
         const uint8_t edge1TACorner = 3u - edge1TRCorner;
         const uint8_t edge2TACorner = 3u - edge2TRCorner;
-
-        const float edge0TACornerXOffset = ee0.x * scTileTACornerOffsets[edge0TACorner].x;
-        const float edge1TACornerXOffset = ee1.x * scTileTACornerOffsets[edge1TACorner].x;
-        const float edge2TACornerXOffset = ee2.x * scTileTACornerOffsets[edge2TACorner].x;
-
-        const float edge0TACornerYOffset = ee0.y * scTileTACornerOffsets[edge0TACorner].y;
-        const float edge1TACornerYOffset = ee1.y * scTileTACornerOffsets[edge1TACorner].y;
-        const float edge2TACornerYOffset = ee2.y * scTileTACornerOffsets[edge2TACorner].y;
 
         // Evaluate edge function for the first tile within [minTile, maxTile] region
         // once and re-use it by stepping from it within following nested loop
@@ -556,20 +552,14 @@ namespace tyler
         const float tilePosX = glm::min(fbWidth, static_cast<float>(minTileX * m_RenderConfig.m_TileSize));
         const float tilePosY = glm::min(fbHeight, static_cast<float>(minTileY * m_RenderConfig.m_TileSize));
 
-        const float edgeFunc0 =
-            ee0.z +
-            (ee0.x * (tilePosX + scTileTRCornerOffsets[edge0TRCorner].x)) +
-            (ee0.y * (tilePosY + scTileTRCornerOffsets[edge0TRCorner].y));
+        // No need to fetch tile positions from tiles, ensure the calculations match nevertheless
+        ASSERT((tilePosX == m_pRenderEngine->m_TileList[m_pRenderEngine->GetGlobalTileIndex(minTileX, minTileY)].m_PosX));
+        ASSERT((tilePosY == m_pRenderEngine->m_TileList[m_pRenderEngine->GetGlobalTileIndex(minTileX, minTileY)].m_PosY));
 
-        const float edgeFunc1 =
-            ee1.z +
-            (ee1.x * (tilePosX + scTileTRCornerOffsets[edge1TRCorner].x)) +
-            (ee1.y * (tilePosY + scTileTRCornerOffsets[edge1TRCorner].y));
-            
-        const float edgeFunc2 =
-            ee2.z +
-            (ee2.x * (tilePosX + scTileTRCornerOffsets[edge2TRCorner].x)) +
-            (ee2.y * (tilePosY + scTileTRCornerOffsets[edge2TRCorner].y));
+        // Evaluaate edge equation at first tile origin
+        const float edgeFunc0 = ee0.z + (ee0.x * tilePosX) + (ee0.y * tilePosY);
+        const float edgeFunc1 = ee1.z + (ee1.x * tilePosX) + (ee1.y * tilePosY);
+        const float edgeFunc2 = ee2.z + (ee2.x * tilePosX) + (ee2.y * tilePosY);
 
         // Iterate over calculated range of tiles
         for (uint32_t ty = minTileY, tyy = 0; ty < maxTileY; ty++, tyy++)
@@ -578,15 +568,18 @@ namespace tyler
             {
                 // (txx, tyy) = how many steps are done per dimension
 
+                const float txxOffset = static_cast<float>(txx * m_RenderConfig.m_TileSize);
+                const float tyyOffset = static_cast<float>(tyy * m_RenderConfig.m_TileSize);
+
                 // Using EE coefficients calculated in TriangleSetup stage and positive half-space tests, determine one of three cases possible for each tile:
                 // 1) TrivialReject -- tile within tri's bbox does not intersect tri -> move on
                 // 2) TrivialAccept -- tile within tri's bbox is completely within tri -> emit a full-tile coverage mask
                 // 3) Overlap       -- tile within tri's bbox intersects tri -> bin the triangle to given tile for further rasterization where block/pixel-level coverage masks will be emitted
 
-                // Step down from edge function computed above for the first tile in bbox
-                float edgeFuncTR0 = (edgeFunc0 + (ee0.x * (txx * m_RenderConfig.m_TileSize)) + (ee0.y * (tyy * m_RenderConfig.m_TileSize)));
-                float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (txx * m_RenderConfig.m_TileSize)) + (ee1.y * (tyy * m_RenderConfig.m_TileSize)));
-                float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (txx * m_RenderConfig.m_TileSize)) + (ee2.y * (tyy * m_RenderConfig.m_TileSize)));
+                // Step from edge function computed above for the first tile in bbox
+                float edgeFuncTR0 = (edgeFunc0 + (ee0.x * (scTileCornerOffsets[edge0TRCorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TRCorner].y + tyyOffset)));
+                float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (scTileCornerOffsets[edge1TRCorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TRCorner].y + tyyOffset)));
+                float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (scTileCornerOffsets[edge2TRCorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TRCorner].y + tyyOffset)));
 
                 // If TR corner of the tile is outside of an edge, reject whole tile
                 bool TRForEdge0 = (edgeFuncTR0 < 0.f);
@@ -604,10 +597,14 @@ namespace tyler
                 {
                     // Tile is partially or completely inside one or more edges, do TrivialAccept tests first
 
-                    // Compute edge functions at TA corners by stepping from TR values already calculated above
-                    bool TAForEdge0 = (edgeFuncTR0 + edge0TACornerXOffset + edge0TACornerYOffset) >= 0.f;
-                    bool TAForEdge1 = (edgeFuncTR1 + edge1TACornerXOffset + edge1TACornerYOffset) >= 0.f;
-                    bool TAForEdge2 = (edgeFuncTR2 + edge2TACornerXOffset + edge2TACornerYOffset) >= 0.f;
+                    // Compute edge functions at TA corners based on edge function at first tile origin
+                    float edgeFuncTA0 = (edgeFunc0 + (ee0.x * (scTileCornerOffsets[edge0TACorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TACorner].y + tyyOffset)));
+                    float edgeFuncTA1 = (edgeFunc1 + (ee1.x * (scTileCornerOffsets[edge1TACorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TACorner].y + tyyOffset)));
+                    float edgeFuncTA2 = (edgeFunc2 + (ee2.x * (scTileCornerOffsets[edge2TACorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TACorner].y + tyyOffset)));
+
+                    bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
+                    bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
+                    bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
                     if (TAForEdge0 && TAForEdge1 && TAForEdge2)
                     {
                         // TrivialAccept
@@ -621,8 +618,8 @@ namespace tyler
 
                         // Emit full-tile coverage mask
                         CoverageMask mask;
-                        mask.m_SampleX = static_cast<uint32_t>(tilePosX + txx * m_RenderConfig.m_TileSize); // Based off of first tile position calculated above
-                        mask.m_SampleY = static_cast<uint32_t>(tilePosY + tyy * m_RenderConfig.m_TileSize); // Based off of first tile position calculated above
+                        mask.m_SampleX = static_cast<uint32_t>(tilePosX + txxOffset); // Based off of first tile position calculated above
+                        mask.m_SampleY = static_cast<uint32_t>(tilePosY + tyyOffset); // Based off of first tile position calculated above
                         mask.m_PrimIdx = primIdx;
                         mask.m_Type = CoverageMaskType::TILE;
 
@@ -714,20 +711,12 @@ namespace tyler
                     ee1 = ee1 / (glm::abs(ee1.x) + glm::abs(ee1.y));
                     ee2 = ee2 / (glm::abs(ee2.x) + glm::abs(ee2.y));
 
-                    static constexpr glm::vec2 scBlockTRCornerOffsets[] =
+                    static constexpr glm::vec2 scBlockCornerOffsets[] =
                     {
                         { 0.f, 0.f},                                // LL (origin)
                         { g_scPixelBlockSize, 0.f },                // LR
                         { 0.f, g_scPixelBlockSize },                // UL
                         { g_scPixelBlockSize, g_scPixelBlockSize}   // UR
-                    };
-
-                    static constexpr glm::vec2 scBlockTACornerOffsets[] =
-                    {
-                        { -static_cast<float>(g_scPixelBlockSize), -static_cast<float>(g_scPixelBlockSize) },   // TR = 3 -> TA = 0
-                        { static_cast<float>(g_scPixelBlockSize), -static_cast<float>(g_scPixelBlockSize) },    // TR = 2 -> TA = 1
-                        { -static_cast<float>(g_scPixelBlockSize), static_cast<float>(g_scPixelBlockSize) },    // TR = 1 -> TA = 2
-                        { static_cast<float>(g_scPixelBlockSize), static_cast<float>(g_scPixelBlockSize) }      // TR = 0 -> TA = 3
                     };
 
                     // (x, y) -> sample location | (a, b, c) -> edge equation coefficients
@@ -743,35 +732,16 @@ namespace tyler
                     const uint8_t edge1TACorner = 3u - edge1TRCorner;
                     const uint8_t edge2TACorner = 3u - edge2TRCorner;
 
-                    // TA corner is one diagonal from TR corner calculated above
-                    const float edge0TACornerXOffset = ee0.x * scBlockTACornerOffsets[edge0TACorner].x;
-                    const float edge1TACornerXOffset = ee1.x * scBlockTACornerOffsets[edge1TACorner].x;
-                    const float edge2TACornerXOffset = ee2.x * scBlockTACornerOffsets[edge2TACorner].x;
-
-                    const float edge0TACornerYOffset = ee0.y * scBlockTACornerOffsets[edge0TACorner].y;
-                    const float edge1TACornerYOffset = ee1.y * scBlockTACornerOffsets[edge1TACorner].y;
-                    const float edge2TACornerYOffset = ee2.y * scBlockTACornerOffsets[edge2TACorner].y;
-
                     // Evaluate edge function for the first block within [minBlock, maxBlock] region
                     // once and re-use it by stepping from it within following nested loop
 
                     const float firstBlockWithinBBoxX = tilePosX + minBlockX * g_scPixelBlockSize;
                     const float firstBlockWithinBBoxY = tilePosY + minBlockY * g_scPixelBlockSize;
 
-                    const float edgeFunc0 =
-                        ee0.z +
-                        (ee0.x * (firstBlockWithinBBoxX + scBlockTRCornerOffsets[edge0TRCorner].x)) +
-                        (ee0.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge0TRCorner].y));
-
-                    const float edgeFunc1 =
-                        ee1.z +
-                        (ee1.x * (firstBlockWithinBBoxX + scBlockTRCornerOffsets[edge1TRCorner].x)) +
-                        (ee1.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge1TRCorner].y));
-
-                    const float edgeFunc2 =
-                        ee2.z +
-                        (ee2.x * (firstBlockWithinBBoxX + scBlockTRCornerOffsets[edge2TRCorner].x)) +
-                        (ee2.y * (firstBlockWithinBBoxY + scBlockTRCornerOffsets[edge2TRCorner].y));
+                    // Evaluate edge equation at first block origin
+                    const float edgeFunc0 = ee0.z + (ee0.x * firstBlockWithinBBoxX) + (ee0.y * firstBlockWithinBBoxY);
+                    const float edgeFunc1 = ee1.z + (ee1.x * firstBlockWithinBBoxX) + (ee1.y * firstBlockWithinBBoxY);
+                    const float edgeFunc2 = ee2.z + (ee2.x * firstBlockWithinBBoxX) + (ee2.y * firstBlockWithinBBoxY);
 
                     // Iterate over calculated range of blocks within the tile
                     for (uint32_t by = minBlockY, byy = 0; by < maxBlockY; by++, byy++)
@@ -785,10 +755,13 @@ namespace tyler
                             // 2) TrivialAccept -- block within tri's bbox is completely within tri -> emit a full-block coverage mask
                             // 3) Overlap       -- block within tri's bbox intersects tri -> descend into block level to emit coverage masks at pixel granularity
 
+                            const float bxxOffset = static_cast<float>(bxx * g_scPixelBlockSize);
+                            const float byyOffset = static_cast<float>(byy * g_scPixelBlockSize);
+
                             // Step down from edge function computed above for the first block in bbox
-                            float edgeFuncTR0 = (edgeFunc0 + (ee0.x * (bxx * g_scPixelBlockSize)) + (ee0.y * (byy * g_scPixelBlockSize)));
-                            float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (bxx * g_scPixelBlockSize)) + (ee1.y * (byy * g_scPixelBlockSize)));
-                            float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (bxx * g_scPixelBlockSize)) + (ee2.y * (byy * g_scPixelBlockSize)));
+                            float edgeFuncTR0 = (edgeFunc0 + (ee0.x * (scBlockCornerOffsets[edge0TRCorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TRCorner].y + byyOffset)));
+                            float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (scBlockCornerOffsets[edge1TRCorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TRCorner].y + byyOffset)));
+                            float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (scBlockCornerOffsets[edge2TRCorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TRCorner].y + byyOffset)));
 
                             // If TR corner of the block is outside of an edge, reject whole block
                             bool TRForEdge0 = (edgeFuncTR0 < 0.f);
@@ -806,10 +779,14 @@ namespace tyler
                             {
                                 // Block is partially or completely inside one or more edges, do TrivialAccept tests first
 
+                                float edgeFuncTA0 = (edgeFunc0 + (ee0.x * (scBlockCornerOffsets[edge0TACorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TACorner].y + byyOffset)));
+                                float edgeFuncTA1 = (edgeFunc1 + (ee1.x * (scBlockCornerOffsets[edge1TACorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TACorner].y + byyOffset)));
+                                float edgeFuncTA2 = (edgeFunc2 + (ee2.x * (scBlockCornerOffsets[edge2TACorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TACorner].y + byyOffset)));
+
                                 // Compute edge functions at TA corners by stepping from TR values already calculated above
-                                bool TAForEdge0 = (edgeFuncTR0 + edge0TACornerXOffset + edge0TACornerYOffset) >= 0.f;
-                                bool TAForEdge1 = (edgeFuncTR1 + edge1TACornerXOffset + edge1TACornerYOffset) >= 0.f;
-                                bool TAForEdge2 = (edgeFuncTR2 + edge2TACornerXOffset + edge2TACornerYOffset) >= 0.f;
+                                bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
+                                bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
+                                bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
                                 if (TAForEdge0 && TAForEdge1 && TAForEdge2)
                                 {
                                     // TrivialAccept
@@ -818,8 +795,8 @@ namespace tyler
                                     LOG("Tile %d block (%d, %d) TA'd by thread %d\n", nextTileIdx, bx, by, m_ThreadIdx);
 
                                     CoverageMask mask;
-                                    mask.m_SampleX = static_cast<uint32_t>(firstBlockWithinBBoxX + bxx * g_scPixelBlockSize); // Based off of first block position calculated above
-                                    mask.m_SampleY = static_cast<uint32_t>(firstBlockWithinBBoxY + byy * g_scPixelBlockSize); // Based off of first block position calculated above
+                                    mask.m_SampleX = static_cast<uint32_t>(firstBlockWithinBBoxX + bxxOffset); // Based off of first block position calculated above
+                                    mask.m_SampleY = static_cast<uint32_t>(firstBlockWithinBBoxY + byyOffset); // Based off of first block position calculated above
                                     mask.m_PrimIdx = primIdx;
                                     mask.m_Type = CoverageMaskType::BLOCK;
 
@@ -836,8 +813,8 @@ namespace tyler
                                     LOG("Tile %d block (%d, %d) overlapping tests by thread %d\n", nextTileIdx, bx, by, m_ThreadIdx);
 
                                     // Position of the block that we're testing at pixel level
-                                    float blockPosX = (firstBlockWithinBBoxX + bxx * g_scPixelBlockSize);
-                                    float blockPosY = (firstBlockWithinBBoxY + byy * g_scPixelBlockSize);
+                                    float blockPosX = (firstBlockWithinBBoxX + bxxOffset);
+                                    float blockPosY = (firstBlockWithinBBoxY + byyOffset);
 
                                     // Compute E(x, y) = (x * a) + (y * b) c at block origin once
                                     __m128 sseEdge0FuncAtBlockOrigin = _mm_set1_ps(ee0.z + (ee0.x * blockPosX) + (ee0.y * blockPosY));
@@ -845,30 +822,26 @@ namespace tyler
                                     __m128 sseEdge2FuncAtBlockOrigin = _mm_set1_ps(ee2.z + (ee2.x * blockPosX) + (ee2.y * blockPosY));
 
                                     // Store edge 0 equation coefficients
-                                    __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
-                                    __m128 sseB4Edge0 = _mm_set_ps1(ee0.y);
+                                    __m128 sseEdge0A4 = _mm_set_ps1(ee0.x);
+                                    __m128 sseEdge0B4 = _mm_set_ps1(ee0.y);
 
                                     // Store edge 1 equation coefficients
-                                    __m128 sseA4Edge1 = _mm_set_ps1(ee1.x);
-                                    __m128 sseB4Edge1 = _mm_set_ps1(ee1.y);
+                                    __m128 sseEdge1A4 = _mm_set_ps1(ee1.x);
+                                    __m128 sseEdge1B4 = _mm_set_ps1(ee1.y);
 
                                     // Store edge 2 equation coefficients
-                                    __m128 sseA4Edge2 = _mm_set_ps1(ee2.x);
-                                    __m128 sseB4Edge2 = _mm_set_ps1(ee2.y);
+                                    __m128 sseEdge2A4 = _mm_set_ps1(ee2.x);
+                                    __m128 sseEdge2B4 = _mm_set_ps1(ee2.y);
 
                                     // Generate masks used for tie-breaking rules (not to double-shade along shared edges)
-                                    __m128 sseA4Edge0Positive = _mm_cmpgt_ps(sseA4Edge0, _mm_setzero_ps());
-                                    __m128 sseA4Edge1Positive = _mm_cmpgt_ps(sseA4Edge1, _mm_setzero_ps());
-                                    __m128 sseA4Edge2Positive = _mm_cmpgt_ps(sseA4Edge2, _mm_setzero_ps());
+                                    __m128 sseEdge0A4PositiveOrB4NonNegativeA4Zero = _mm_or_ps(_mm_cmpgt_ps(sseEdge0A4, _mm_setzero_ps()),
+                                        _mm_and_ps(_mm_cmpge_ps(sseEdge0B4, _mm_setzero_ps()), _mm_cmpeq_ps(sseEdge0A4, _mm_setzero_ps())));
 
-                                    __m128 sseB4Edge0NonnegativeA4Zero = _mm_and_ps(
-                                        _mm_cmpge_ps(sseB4Edge0, _mm_setzero_ps()), _mm_cmpeq_ps(sseA4Edge0, _mm_setzero_ps()));
+                                    __m128 sseEdge1A4PositiveOrB4NonNegativeA4Zero = _mm_or_ps(_mm_cmpgt_ps(sseEdge1A4, _mm_setzero_ps()),
+                                        _mm_and_ps(_mm_cmpge_ps(sseEdge1B4, _mm_setzero_ps()), _mm_cmpeq_ps(sseEdge1A4, _mm_setzero_ps())));
 
-                                    __m128 sseB4Edge1NonnegativeA4Zero = _mm_and_ps(
-                                        _mm_cmpge_ps(sseB4Edge1, _mm_setzero_ps()), _mm_cmpeq_ps(sseA4Edge1, _mm_setzero_ps()));
-
-                                    __m128 sseB4Edge2NonnegativeA4Zero = _mm_and_ps(
-                                        _mm_cmpge_ps(sseB4Edge2, _mm_setzero_ps()), _mm_cmpeq_ps(sseA4Edge2, _mm_setzero_ps()));
+                                    __m128 sseEdge2A4PositiveOrB4NonNegativeA4Zero = _mm_or_ps(_mm_cmpgt_ps(sseEdge2A4, _mm_setzero_ps()),
+                                        _mm_and_ps(_mm_cmpge_ps(sseEdge2B4, _mm_setzero_ps()), _mm_cmpeq_ps(sseEdge2A4, _mm_setzero_ps())));
 
                                     for (uint32_t py = 0; py < g_scPixelBlockSize; py++)
                                     {
@@ -921,6 +894,7 @@ namespace tyler
                                                 if (inside3) debugMaskScalar |= g_scQuadMask3;
                                             }
 #endif
+
                                             // Store X positions of 4 consecutive samples
                                             __m128 sseX4 = _mm_setr_ps(
                                                 g_scSIMDWidth * px + 0.5f,
@@ -929,14 +903,14 @@ namespace tyler
                                                 g_scSIMDWidth * px + 3.5f);
 
                                             // a * s
-                                            __m128 sseEdge0TermA = _mm_mul_ps(sseA4Edge0, sseX4);
-                                            __m128 sseEdge1TermA = _mm_mul_ps(sseA4Edge1, sseX4);
-                                            __m128 sseEdge2TermA = _mm_mul_ps(sseA4Edge2, sseX4);
+                                            __m128 sseEdge0TermA = _mm_mul_ps(sseEdge0A4, sseX4);
+                                            __m128 sseEdge1TermA = _mm_mul_ps(sseEdge1A4, sseX4);
+                                            __m128 sseEdge2TermA = _mm_mul_ps(sseEdge2A4, sseX4);
 
                                             // b * t
-                                            __m128 sseEdge0TermB = _mm_mul_ps(sseB4Edge0, sseY4);
-                                            __m128 sseEdge1TermB = _mm_mul_ps(sseB4Edge1, sseY4);
-                                            __m128 sseEdge2TermB = _mm_mul_ps(sseB4Edge2, sseY4);
+                                            __m128 sseEdge0TermB = _mm_mul_ps(sseEdge0B4, sseY4);
+                                            __m128 sseEdge1TermB = _mm_mul_ps(sseEdge1B4, sseY4);
+                                            __m128 sseEdge2TermB = _mm_mul_ps(sseEdge2B4, sseY4);
 
                                             // E(x+s, y+t) = E(x,y) + a*s + t*b
                                             __m128 sseEdgeFunc0 = _mm_add_ps(sseEdge0FuncAtBlockOrigin, _mm_add_ps(sseEdge0TermA, sseEdge0TermB));
@@ -947,29 +921,26 @@ namespace tyler
                                             //E(x, y) =
                                             //    E(x, y) > 0
                                             //        ||
-                                            //    !E(x, y) < 0 && ((a > 0) || (a = 0 && b >= 0)0
+                                            //    !E(x, y) < 0 && (a > 0 || (a = 0 && b >= 0))
                                             //
 
                                             // Edge 0 test
                                             __m128 sseEdge0Positive = _mm_cmpgt_ps(sseEdgeFunc0, _mm_setzero_ps());
                                             __m128 sseEdge0Negative = _mm_cmplt_ps(sseEdgeFunc0, _mm_setzero_ps());
                                             __m128 sseEdge0FuncMask = _mm_or_ps(sseEdge0Positive,
-                                                _mm_andnot_ps(sseEdge0Negative,
-                                                    _mm_or_ps(sseA4Edge0Positive, sseB4Edge0NonnegativeA4Zero)));
+                                                _mm_andnot_ps(sseEdge0Negative, sseEdge0A4PositiveOrB4NonNegativeA4Zero));
 
                                             // Edge 1 test
                                             __m128 sseEdge1Positive = _mm_cmpgt_ps(sseEdgeFunc1, _mm_setzero_ps());
                                             __m128 sseEdge1Negative = _mm_cmplt_ps(sseEdgeFunc1, _mm_setzero_ps());
                                             __m128 sseEdge1FuncMask = _mm_or_ps(sseEdge1Positive,
-                                                _mm_andnot_ps(sseEdge1Negative,
-                                                    _mm_or_ps(sseA4Edge1Positive, sseB4Edge1NonnegativeA4Zero)));
+                                                _mm_andnot_ps(sseEdge1Negative, sseEdge1A4PositiveOrB4NonNegativeA4Zero));
 
                                             // Edge 2 test
                                             __m128 sseEdge2Positive = _mm_cmpgt_ps(sseEdgeFunc2, _mm_setzero_ps());
                                             __m128 sseEdge2Negative = _mm_cmplt_ps(sseEdgeFunc2, _mm_setzero_ps());
                                             __m128 sseEdge2FuncMask = _mm_or_ps(sseEdge2Positive,
-                                                _mm_andnot_ps(sseEdge2Negative,
-                                                    _mm_or_ps(sseA4Edge2Positive, sseB4Edge2NonnegativeA4Zero)));
+                                                _mm_andnot_ps(sseEdge2Negative, sseEdge2A4PositiveOrB4NonNegativeA4Zero));
 #else
                                             __m128 sseEdge0FuncMask = _mm_cmpge_ps(sseEdgeFunc0, _mm_setzero_ps());
                                             __m128 sseEdge1FuncMask = _mm_cmpge_ps(sseEdgeFunc1, _mm_setzero_ps());
