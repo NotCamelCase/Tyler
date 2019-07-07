@@ -408,8 +408,8 @@ namespace tyler
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
 
-                // No clipping applied
-                return true;
+// No clipping applied
+return true;
             }
         }
     }
@@ -421,9 +421,8 @@ namespace tyler
         // Transform a given vertex in clip-space [-w,w] to device-space homogeneous coordinates [0, {w|h}]
 #define TO_HOMOGEN(clipPos, width, height) glm::vec4((width * (clipPos.x + clipPos.w) * 0.5f), (height * (clipPos.y + clipPos.w) * 0.5f), clipPos.z, clipPos.w)
 
-        uint32_t fbWidth = m_pRenderEngine->m_Framebuffer.m_Width;
-        uint32_t fbHeight = m_pRenderEngine->m_Framebuffer.m_Height;
-        ASSERT((fbWidth > 0u) && (fbHeight > 0u));
+        float fbWidth = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
+        float fbHeight = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
 
         // First, transform clip-space (x, y, z, w) vertices to device-space 2D homogeneous coordinates (x, y, w)
         const glm::vec4 v0Homogen = TO_HOMOGEN(v0Clip, fbWidth, fbHeight);
@@ -497,7 +496,7 @@ namespace tyler
 
         // Given a tile size and frame buffer dimensions, find min/max range of the tiles that fall within bbox computed above
         // which we're going to iterate over, in order to determine if the primitive should be binned or not
-        
+
         // Use floor(), min indices are inclusive
         uint32_t minTileX = static_cast<uint32_t>(glm::floor(bbox.m_MinX / m_RenderConfig.m_TileSize));
         uint32_t minTileY = static_cast<uint32_t>(glm::floor(bbox.m_MinY / m_RenderConfig.m_TileSize));
@@ -968,7 +967,7 @@ namespace tyler
                                                 mask.m_Type = CoverageMaskType::QUAD;
                                                 mask.m_QuadMask = maskInt;
 
-                                                // Emit the quad mask
+                                                // Emit a quad mask
                                                 m_pRenderEngine->AppendCoverageMask(m_ThreadIdx, nextTileIdx, mask);
                                             }
                                         }

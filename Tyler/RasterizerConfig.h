@@ -22,6 +22,9 @@ namespace tyler
     // # samples per row / SIMD width
     static constexpr uint32_t   g_scNumEdgeTestsPerRow = g_scPixelBlockSize / g_scSIMDWidth;
 
+    // Initial coverage masks buffer size
+    static constexpr uint32_t   g_scRasterizerCoverageMaskBufferInitialSize = 4096u;
+
     // Tiles comprise of one or more blocks which are a fixed-size 8x8 group of pixels
     enum TileSize : uint32_t
     {

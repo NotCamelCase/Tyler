@@ -38,7 +38,7 @@ namespace tyler
     // Per-tile masks buffers that the rasterizer will emit for primitives that need to be fragment-shaded
     struct CoverageMaskBuffer
     {
-        CoverageMaskBuffer(uint32_t tileSize)
+        CoverageMaskBuffer()
             :
             m_CurrentAllocationIdx(0),
             m_NumAllocations(0),
@@ -48,7 +48,7 @@ namespace tyler
 
             // Allocate and initalize first buffer slot
             Slot* pBuffer = &m_AllocationList[m_CurrentAllocationIdx];
-            pBuffer->m_Capacity = tileSize * tileSize / 2; //TODO: Compute initial size based on tile size and RT resolution maybe?!
+            pBuffer->m_Capacity = g_scRasterizerCoverageMaskBufferInitialSize;
             pBuffer->m_pData = new CoverageMask[pBuffer->m_Capacity];
 
             ++m_NumAllocations;
@@ -100,8 +100,10 @@ namespace tyler
                 {
                     ASSERT(nextSlot.m_pData == nullptr);
 
+                    // Double the size of current slot
                     nextSlot.m_Capacity = currentSlot.m_Capacity * 2;
-                    nextSlot.m_pData = new CoverageMask[nextSlot.m_Capacity]; // Double the size of current slot
+                    nextSlot.m_pData = new CoverageMask[nextSlot.m_Capacity];
+
                     ASSERT(nextSlot.m_AllocationCount == 0u);
 
                     m_SlotAllocationPendingSwap = true;

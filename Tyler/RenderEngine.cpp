@@ -175,7 +175,7 @@ namespace tyler
 
                 for (uint32_t j = 0; j < m_RenderConfig.m_NumPipelineThreads; j++)
                 {
-                    CoverageMaskBuffer* pBuffer = new CoverageMaskBuffer(m_RenderConfig.m_TileSize);
+                    CoverageMaskBuffer* pBuffer = new CoverageMaskBuffer();
                     m_CoverageMasks[i][j] = pBuffer;
                 }
             }
