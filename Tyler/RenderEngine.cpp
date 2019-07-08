@@ -68,9 +68,6 @@ namespace tyler
         ASSERT(!clearColor || (m_Framebuffer.m_pColorBuffer != nullptr));
         ASSERT(!clearDepth || (m_Framebuffer.m_pDepthBuffer != nullptr));
 
-        //TODO: Clear frame buffer tiles!!!
-        //TODO: Optimize render target clearing!!!
-
         if (clearColor)
         {
             const glm::uvec4 color =
@@ -438,7 +435,7 @@ namespace tyler
         float* pDepthBufferAddress = &m_Framebuffer.m_pDepthBuffer[sampleX + sampleY * depthPitch];
 
         // Mask-store interpolated Z values
-        _mm_maskmoveu_si128( // There is no _mm_maskstore_ps() in SSE so we mask-store 4-sample uint32 values as raw bytes
+        _mm_maskmoveu_si128( // There is no _mm_maskstore_ps() in SSE so we mask-store 4-sample FP32 values as raw bytes
             sseZInterpolated,
             _mm_castps_si128(sseWriteMask),
             reinterpret_cast<char*>(pDepthBufferAddress));

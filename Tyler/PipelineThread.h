@@ -57,7 +57,7 @@ namespace tyler
         void FragmentShadeQuad(CoverageMask* pMask);        
 
         // Given three clip-space verices, compute the bounding box of a triangle clamped to width/height
-        void ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height, Rect2D* pBbox) const;
+        Rect2D ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height) const;
 
         // Calculate interpolation coefficients to be used during FS
         // to calculate perspective-correct interpolation of vertex attributes

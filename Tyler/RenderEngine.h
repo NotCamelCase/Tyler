@@ -54,9 +54,21 @@ namespace tyler
         void WaitForPipelineThreadsToCompleteRasterization() const;
 
         // Return a tile's global index given its row/column address
-        inline uint32_t GetGlobalTileIndex(uint32_t tileX, uint32_t tileY) const
+        uint32_t GetGlobalTileIndex(uint32_t tileX, uint32_t tileY) const
         {
             return (tileX + tileY * m_NumTilePerRow);
+        }
+
+        // Return next available tile index to be rasterized from tile queue
+        uint32_t FetchNextTileIndexForRasterization()
+        {
+            return m_RasterizerQueue.FetchNextTileIndex();
+        }
+
+        // Return next available tile index to be fragment-shaded from tile queue
+        uint32_t FetchNextTileIndexForFragmentShading()
+        {
+            return m_RasterizerQueue.RemoveTileIndex();
         }
 
         // Add the tile to the rasterizer queue iff it's not done yet

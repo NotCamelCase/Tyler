@@ -349,8 +349,7 @@ namespace tyler
                 float width = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
                 float height = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
 
-                Rect2D bbox;
-                ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height, &bbox);
+                Rect2D bbox = ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height);
 
                 if ((bbox.m_MinX >= width) ||
                     (bbox.m_MaxX < 0.f) ||
@@ -362,7 +361,7 @@ namespace tyler
                 }
                 else
                 {
-                    // Clamp bbox to screen bounds
+                    // Clamp bbox to screen extents
                     bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
                     bbox.m_MaxX = glm::min(width, bbox.m_MaxX);
                     bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
@@ -386,8 +385,7 @@ namespace tyler
             float width = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
             float height = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
 
-            Rect2D bbox;
-            ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height, &bbox);
+            Rect2D bbox = ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height);
 
             if ((bbox.m_MinX >= width) ||
                 (bbox.m_MaxX < 0.f) ||
@@ -407,9 +405,9 @@ namespace tyler
 
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
-
-// No clipping applied
-return true;
+                
+                // No clipping 
+                return true;
             }
         }
     }
@@ -490,7 +488,8 @@ return true;
 
         // Fetch bbox of the triangle computed during clipping
         Rect2D bbox = m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx];
-
+        
+        // FT clipper must have clamped bbox to screen extents!
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
         ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
 
@@ -580,7 +579,7 @@ return true;
                 float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (scTileCornerOffsets[edge1TRCorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TRCorner].y + tyyOffset)));
                 float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (scTileCornerOffsets[edge2TRCorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TRCorner].y + tyyOffset)));
 
-                // If TR corner of the tile is outside of an edge, reject whole tile
+                // If TR corner of the tile is outside any edge, reject whole tile
                 bool TRForEdge0 = (edgeFuncTR0 < 0.f);
                 bool TRForEdge1 = (edgeFuncTR1 < 0.f);
                 bool TRForEdge2 = (edgeFuncTR2 < 0.f);
@@ -601,6 +600,7 @@ return true;
                     float edgeFuncTA1 = (edgeFunc1 + (ee1.x * (scTileCornerOffsets[edge1TACorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TACorner].y + tyyOffset)));
                     float edgeFuncTA2 = (edgeFunc2 + (ee2.x * (scTileCornerOffsets[edge2TACorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TACorner].y + tyyOffset)));
 
+                    // If TA corner of the tile is outside all edges, accept whole tile
                     bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
                     bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
                     bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
@@ -647,7 +647,7 @@ return true;
     {
         // Request next (global) index of the tile to be rasterized at block level from RenderEngine
         uint32_t nextTileIdx;
-        while ((nextTileIdx = m_pRenderEngine->m_RasterizerQueue.FetchNextTileIndex()) != g_scInvalidTileIndex)
+        while ((nextTileIdx = m_pRenderEngine->FetchNextTileIndexForRasterization()) != g_scInvalidTileIndex)
         {
             LOG("Thread %d rasterizing tile %d\n", m_ThreadIdx, nextTileIdx);
 
@@ -762,7 +762,7 @@ return true;
                             float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (scBlockCornerOffsets[edge1TRCorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TRCorner].y + byyOffset)));
                             float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (scBlockCornerOffsets[edge2TRCorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TRCorner].y + byyOffset)));
 
-                            // If TR corner of the block is outside of an edge, reject whole block
+                            // If TR corner of the block is outside an edge, reject whole block
                             bool TRForEdge0 = (edgeFuncTR0 < 0.f);
                             bool TRForEdge1 = (edgeFuncTR1 < 0.f);
                             bool TRForEdge2 = (edgeFuncTR2 < 0.f);
@@ -778,11 +778,12 @@ return true;
                             {
                                 // Block is partially or completely inside one or more edges, do TrivialAccept tests first
 
+                                // Compute edge functions at TA corners by stepping from first block position calculated above
                                 float edgeFuncTA0 = (edgeFunc0 + (ee0.x * (scBlockCornerOffsets[edge0TACorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TACorner].y + byyOffset)));
                                 float edgeFuncTA1 = (edgeFunc1 + (ee1.x * (scBlockCornerOffsets[edge1TACorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TACorner].y + byyOffset)));
                                 float edgeFuncTA2 = (edgeFunc2 + (ee2.x * (scBlockCornerOffsets[edge2TACorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TACorner].y + byyOffset)));
 
-                                // Compute edge functions at TA corners by stepping from TR values already calculated above
+                                // If TA corner of the block is inside all edges, accept whole block
                                 bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
                                 bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
                                 bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
@@ -917,7 +918,7 @@ return true;
                                             __m128 sseEdgeFunc2 = _mm_add_ps(sseEdge2FuncAtBlockOrigin, _mm_add_ps(sseEdge2TermA, sseEdge2TermB));
 
 #ifdef EDGE_TEST_SHARED_EDGES
-                                            //E(x, y) =
+                                            //E(x, y):
                                             //    E(x, y) > 0
                                             //        ||
                                             //    !E(x, y) < 0 && (a > 0 || (a = 0 && b >= 0))
@@ -941,6 +942,8 @@ return true;
                                             __m128 sseEdge2FuncMask = _mm_or_ps(sseEdge2Positive,
                                                 _mm_andnot_ps(sseEdge2Negative, sseEdge2A4PositiveOrB4NonNegativeA4Zero));
 #else
+                                            // E(x, y): E(x, y) >= 0
+
                                             __m128 sseEdge0FuncMask = _mm_cmpge_ps(sseEdgeFunc0, _mm_setzero_ps());
                                             __m128 sseEdge1FuncMask = _mm_cmpge_ps(sseEdgeFunc1, _mm_setzero_ps());
                                             __m128 sseEdge2FuncMask = _mm_cmpge_ps(sseEdgeFunc2, _mm_setzero_ps());
@@ -987,7 +990,7 @@ return true;
     void PipelineThread::ExecuteFragmentShader()
     {
         uint32_t nextTileIdx;
-        while ((nextTileIdx = m_pRenderEngine->m_RasterizerQueue.RemoveTileIndex()) != g_scInvalidTileIndex)
+        while ((nextTileIdx = m_pRenderEngine->FetchNextTileIndexForFragmentShading()) != g_scInvalidTileIndex)
         {
             LOG("Thread %d fragment shader for tile %d\n", m_ThreadIdx, nextTileIdx);
 
@@ -1037,7 +1040,7 @@ return true;
 
     void PipelineThread::FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx)
     {
-        static const uint32_t numBlockInTile = m_RenderConfig.m_TileSize / g_scPixelBlockSize;
+        const uint32_t numBlockInTile = m_RenderConfig.m_TileSize / g_scPixelBlockSize;
 
         for (uint32_t py = 0; py < numBlockInTile; py++)
         {
@@ -1234,9 +1237,9 @@ return true;
         m_pRenderEngine->UpdateColorBuffer(sseWriteMask, fragmentOutput, pMask->m_SampleX, pMask->m_SampleY);
     }
 
-    void PipelineThread::ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height, Rect2D* pBbox) const
+    Rect2D PipelineThread::ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height) const
     {
-        ASSERT(pBbox != nullptr);
+        Rect2D bbox;
 
         // Compute NDC vertices; confined to 2D because we don't need z here
         glm::vec2 v0NDC = glm::vec2(v0Clip.x, v0Clip.y) / v0Clip.w;
@@ -1254,10 +1257,12 @@ return true;
         float ymin = glm::min(v0Raster.y, glm::min(v1Raster.y, v2Raster.y));
         float ymax = glm::max(v0Raster.y, glm::max(v1Raster.y, v2Raster.y));
 
-        pBbox->m_MinX = xmin;
-        pBbox->m_MinY = ymin;
-        pBbox->m_MaxX = xmax;
-        pBbox->m_MaxY = ymax;
+        bbox.m_MinX = xmin;
+        bbox.m_MinY = ymin;
+        bbox.m_MaxX = xmax;
+        bbox.m_MaxY = ymax;
+
+        return bbox;
     }
 
     void PipelineThread::CalculateInterpolationCoefficients(
