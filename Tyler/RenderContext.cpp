@@ -70,9 +70,9 @@ namespace tyler
     {
         // VS has to exist
         ASSERT(vertexShader != nullptr);
-		ASSERT(metadata.m_NumVec4Attributes <= g_scMaxVertexAttributes);
-		ASSERT(metadata.m_NumVec3Attributes <= g_scMaxVertexAttributes);
-		ASSERT(metadata.m_NumVec2Attributes <= g_scMaxVertexAttributes);
+        ASSERT(metadata.m_NumVec4Attributes <= g_scMaxVertexAttributes);
+        ASSERT(metadata.m_NumVec3Attributes <= g_scMaxVertexAttributes);
+        ASSERT(metadata.m_NumVec2Attributes <= g_scMaxVertexAttributes);
 
         m_pRenderEngine->m_VertexShader = vertexShader;
         m_pRenderEngine->m_FragmentShader = fragmentShader;

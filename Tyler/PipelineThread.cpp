@@ -203,7 +203,6 @@ namespace tyler
 
                 CacheVertexData(vertexIdx1, *pV1Clip, *pTempVertexAttrib1);
             }
-
             
             if (PerformVertexCacheLookup(vertexIdx2, &cacheEntry2))
             {
@@ -298,11 +297,21 @@ namespace tyler
                 (v1Clip.x < -v1Clip.w) &&
                 (v2Clip.x < -v2Clip.w);
 
+            bool allInsideLeftPlane =
+                (v0Clip.x >= -v0Clip.w) &&
+                (v1Clip.x >= -v1Clip.w) &&
+                (v2Clip.x >= -v2Clip.w);
+
             // Clip against w-x=0 right plane
             bool allOutsideRightPlane =
                 (v0Clip.x > v0Clip.w) &&
                 (v1Clip.x > v1Clip.w) &&
                 (v2Clip.x > v2Clip.w);
+
+            bool allInsideRightPlane =
+                (v0Clip.x <= v0Clip.w) &&
+                (v1Clip.x <= v1Clip.w) &&
+                (v2Clip.x <= v2Clip.w);
 
             // Clip against w+y top plane
             bool allOutsideBottomPlane =
@@ -310,11 +319,21 @@ namespace tyler
                 (v1Clip.y < -v1Clip.w) &&
                 (v2Clip.y < -v2Clip.w);
 
+            bool allInsideBottomPlane =
+                (v0Clip.y >= -v0Clip.w) &&
+                (v1Clip.y >= -v1Clip.w) &&
+                (v2Clip.y >= -v2Clip.w);
+
             // Clip against w-y bottom plane
             bool allOutsideTopPlane =
                 (v0Clip.y > v0Clip.w) &&
                 (v1Clip.y > v1Clip.w) &&
                 (v2Clip.y > v2Clip.w);
+
+            bool allInsideTopPlane =
+                (v0Clip.y <= v0Clip.w) &&
+                (v1Clip.y <= v1Clip.w) &&
+                (v2Clip.y <= v2Clip.w);
 
             // Clip against 0<z near plane
             bool allOutsideNearPlane =
@@ -322,11 +341,24 @@ namespace tyler
                 (v1Clip.z < 0.f) &&
                 (v2Clip.z < 0.f);
 
+            bool allInsideNearPlane =
+                (v0Clip.z >= 0.f) &&
+                (v1Clip.z >= 0.f) &&
+                (v2Clip.z >= 0.f);
+
             // Clip against z>w far plane
             bool allOutsideFarPlane =
                 (v0Clip.z > v0Clip.w) &&
                 (v1Clip.z > v1Clip.w) &&
                 (v2Clip.z > v2Clip.w);
+
+            bool allInsideFarPlane =
+                (v0Clip.z <= v0Clip.w) &&
+                (v1Clip.z <= v1Clip.w) &&
+                (v2Clip.z <= v2Clip.w);
+
+            float width = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
+            float height = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
 
             if (allOutsideLeftPlane ||
                 allOutsideRightPlane ||
@@ -337,43 +369,61 @@ namespace tyler
             {
                 // TRIVIALREJECT case
 
+                LOG("Prim %d TR-clipped by thread %d", primIdx, m_ThreadIdx);
+
                 // Primitive completely outside of one of the clip planes, discard it
                 return false;
             }
-            else
+            else if (allInsideLeftPlane &&
+                allInsideRightPlane &&
+                allInsideBottomPlane &&
+                allInsideTopPlane &&
+                allInsideNearPlane &&
+                allInsideFarPlane)
             {
-                // MUSTCLIP or TRIVIALACCEPT
+                // TRIVIALACCEPT
+
+                LOG("Prim %d TA'd in FT clipper by thread %d", primIdx, m_ThreadIdx);
+
+                // Primitive is completely inside view frustum
 
                 // Compute bounding box
-
-                float width = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
-                float height = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
-
                 Rect2D bbox = ComputeBoundingBox(v0Clip, v1Clip, v2Clip, width, height);
 
-                if ((bbox.m_MinX >= width) ||
-                    (bbox.m_MaxX < 0.f) ||
-                    (bbox.m_MinY >= height) ||
-                    (bbox.m_MaxY < 0.f))
-                {
-                    // If tri's bbox exceeds screen bounds, discard it
-                    return false;
-                }
-                else
-                {
-                    // Clamp bbox to screen extents
-                    bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
-                    bbox.m_MaxX = glm::min(width, bbox.m_MaxX);
-                    bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
-                    bbox.m_MaxY = glm::min(height, bbox.m_MaxY);
+                // Clamp bbox to screen extents
+                bbox.m_MinX = glm::max(0.f, bbox.m_MinX);
+                bbox.m_MaxX = glm::min(width, bbox.m_MaxX);
+                bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
+                bbox.m_MaxY = glm::min(height, bbox.m_MaxY);
 
-                    // Cache bbox of the primitive
-                    m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
+                // Cache bbox of the primitive
+                m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
+                
+                return true;
+            }
+            else
+            {
+                // MUSTCLIP
 
-                    // Primitive is partially or completely inside view frustum, but we don't check for this
-                    // so we must rasterize it further
-                    return true;
-                }
+                LOG("Prim %d MUSTCLIP'd by thread %d", primIdx, m_ThreadIdx);
+
+                // Primitive is partially inside view frustum, but we don't clip for this
+                // so we must be conservative and return the whole range to rasterize further.
+                // Note that is *overly* conservative in practice; we could do better by implementing
+                // Blinn's method of screen coverage calculation properly but it's an overkill here.
+
+                Rect2D bbox =
+                {
+                    0.f,
+                    0.f,
+                    width,
+                    height
+                };
+
+                // Cache bbox of the primitive
+                m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
+
+                return true;
             }
         }
         else
@@ -555,9 +605,9 @@ namespace tyler
         ASSERT((tilePosY == m_pRenderEngine->m_TileList[m_pRenderEngine->GetGlobalTileIndex(minTileX, minTileY)].m_PosY));
 
         // Evaluaate edge equation at first tile origin
-        const float edgeFunc0 = ee0.z + (ee0.x * tilePosX) + (ee0.y * tilePosY);
-        const float edgeFunc1 = ee1.z + (ee1.x * tilePosX) + (ee1.y * tilePosY);
-        const float edgeFunc2 = ee2.z + (ee2.x * tilePosX) + (ee2.y * tilePosY);
+        const float edgeFunc0 = ee0.z + ((ee0.x * tilePosX) + (ee0.y * tilePosY));
+        const float edgeFunc1 = ee1.z + ((ee1.x * tilePosX) + (ee1.y * tilePosY));
+        const float edgeFunc2 = ee2.z + ((ee2.x * tilePosX) + (ee2.y * tilePosY));
 
         // Iterate over calculated range of tiles
         for (uint32_t ty = minTileY, tyy = 0; ty < maxTileY; ty++, tyy++)
@@ -575,9 +625,9 @@ namespace tyler
                 // 3) Overlap       -- tile within tri's bbox intersects tri -> bin the triangle to given tile for further rasterization where block/pixel-level coverage masks will be emitted
 
                 // Step from edge function computed above for the first tile in bbox
-                float edgeFuncTR0 = (edgeFunc0 + (ee0.x * (scTileCornerOffsets[edge0TRCorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TRCorner].y + tyyOffset)));
-                float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (scTileCornerOffsets[edge1TRCorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TRCorner].y + tyyOffset)));
-                float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (scTileCornerOffsets[edge2TRCorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TRCorner].y + tyyOffset)));
+                float edgeFuncTR0 = edgeFunc0 + ((ee0.x * (scTileCornerOffsets[edge0TRCorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TRCorner].y + tyyOffset)));
+                float edgeFuncTR1 = edgeFunc1 + ((ee1.x * (scTileCornerOffsets[edge1TRCorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TRCorner].y + tyyOffset)));
+                float edgeFuncTR2 = edgeFunc2 + ((ee2.x * (scTileCornerOffsets[edge2TRCorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TRCorner].y + tyyOffset)));
 
                 // If TR corner of the tile is outside any edge, reject whole tile
                 bool TRForEdge0 = (edgeFuncTR0 < 0.f);
@@ -596,9 +646,9 @@ namespace tyler
                     // Tile is partially or completely inside one or more edges, do TrivialAccept tests first
 
                     // Compute edge functions at TA corners based on edge function at first tile origin
-                    float edgeFuncTA0 = (edgeFunc0 + (ee0.x * (scTileCornerOffsets[edge0TACorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TACorner].y + tyyOffset)));
-                    float edgeFuncTA1 = (edgeFunc1 + (ee1.x * (scTileCornerOffsets[edge1TACorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TACorner].y + tyyOffset)));
-                    float edgeFuncTA2 = (edgeFunc2 + (ee2.x * (scTileCornerOffsets[edge2TACorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TACorner].y + tyyOffset)));
+                    float edgeFuncTA0 = edgeFunc0 + ((ee0.x * (scTileCornerOffsets[edge0TACorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TACorner].y + tyyOffset)));
+                    float edgeFuncTA1 = edgeFunc1 + ((ee1.x * (scTileCornerOffsets[edge1TACorner].x + txxOffset)) + (ee1.y * (scTileCornerOffsets[edge1TACorner].y + tyyOffset)));
+                    float edgeFuncTA2 = edgeFunc2 + ((ee2.x * (scTileCornerOffsets[edge2TACorner].x + txxOffset)) + (ee2.y * (scTileCornerOffsets[edge2TACorner].y + tyyOffset)));
 
                     // If TA corner of the tile is outside all edges, accept whole tile
                     bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
@@ -738,9 +788,9 @@ namespace tyler
                     const float firstBlockWithinBBoxY = tilePosY + minBlockY * g_scPixelBlockSize;
 
                     // Evaluate edge equation at first block origin
-                    const float edgeFunc0 = ee0.z + (ee0.x * firstBlockWithinBBoxX) + (ee0.y * firstBlockWithinBBoxY);
-                    const float edgeFunc1 = ee1.z + (ee1.x * firstBlockWithinBBoxX) + (ee1.y * firstBlockWithinBBoxY);
-                    const float edgeFunc2 = ee2.z + (ee2.x * firstBlockWithinBBoxX) + (ee2.y * firstBlockWithinBBoxY);
+                    const float edgeFunc0 = ee0.z + ((ee0.x * firstBlockWithinBBoxX) + (ee0.y * firstBlockWithinBBoxY));
+                    const float edgeFunc1 = ee1.z + ((ee1.x * firstBlockWithinBBoxX) + (ee1.y * firstBlockWithinBBoxY));
+                    const float edgeFunc2 = ee2.z + ((ee2.x * firstBlockWithinBBoxX) + (ee2.y * firstBlockWithinBBoxY));
 
                     // Iterate over calculated range of blocks within the tile
                     for (uint32_t by = minBlockY, byy = 0; by < maxBlockY; by++, byy++)
@@ -758,9 +808,9 @@ namespace tyler
                             const float byyOffset = static_cast<float>(byy * g_scPixelBlockSize);
 
                             // Step down from edge function computed above for the first block in bbox
-                            float edgeFuncTR0 = (edgeFunc0 + (ee0.x * (scBlockCornerOffsets[edge0TRCorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TRCorner].y + byyOffset)));
-                            float edgeFuncTR1 = (edgeFunc1 + (ee1.x * (scBlockCornerOffsets[edge1TRCorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TRCorner].y + byyOffset)));
-                            float edgeFuncTR2 = (edgeFunc2 + (ee2.x * (scBlockCornerOffsets[edge2TRCorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TRCorner].y + byyOffset)));
+                            float edgeFuncTR0 = edgeFunc0 + ((ee0.x * (scBlockCornerOffsets[edge0TRCorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TRCorner].y + byyOffset)));
+                            float edgeFuncTR1 = edgeFunc1 + ((ee1.x * (scBlockCornerOffsets[edge1TRCorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TRCorner].y + byyOffset)));
+                            float edgeFuncTR2 = edgeFunc2 + ((ee2.x * (scBlockCornerOffsets[edge2TRCorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TRCorner].y + byyOffset)));
 
                             // If TR corner of the block is outside an edge, reject whole block
                             bool TRForEdge0 = (edgeFuncTR0 < 0.f);
@@ -779,9 +829,9 @@ namespace tyler
                                 // Block is partially or completely inside one or more edges, do TrivialAccept tests first
 
                                 // Compute edge functions at TA corners by stepping from first block position calculated above
-                                float edgeFuncTA0 = (edgeFunc0 + (ee0.x * (scBlockCornerOffsets[edge0TACorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TACorner].y + byyOffset)));
-                                float edgeFuncTA1 = (edgeFunc1 + (ee1.x * (scBlockCornerOffsets[edge1TACorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TACorner].y + byyOffset)));
-                                float edgeFuncTA2 = (edgeFunc2 + (ee2.x * (scBlockCornerOffsets[edge2TACorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TACorner].y + byyOffset)));
+                                float edgeFuncTA0 = edgeFunc0 + ((ee0.x * (scBlockCornerOffsets[edge0TACorner].x + bxxOffset)) + (ee0.y * (scBlockCornerOffsets[edge0TACorner].y + byyOffset)));
+                                float edgeFuncTA1 = edgeFunc1 + ((ee1.x * (scBlockCornerOffsets[edge1TACorner].x + bxxOffset)) + (ee1.y * (scBlockCornerOffsets[edge1TACorner].y + byyOffset)));
+                                float edgeFuncTA2 = edgeFunc2 + ((ee2.x * (scBlockCornerOffsets[edge2TACorner].x + bxxOffset)) + (ee2.y * (scBlockCornerOffsets[edge2TACorner].y + byyOffset)));
 
                                 // If TA corner of the block is inside all edges, accept whole block
                                 bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
@@ -1442,10 +1492,10 @@ namespace tyler
                 _mm_mul_ps(sseAttrib0W, ssef0XY),
                 _mm_add_ps(_mm_mul_ps(sseAttrib1W, ssef1XY), sseAttrib2W));
 
-            pInterpolatedAttributes[i].m_Vec4Attributes->m_SSEX = sseVec4AttribX;
-            pInterpolatedAttributes[i].m_Vec4Attributes->m_SSEY = sseVec4AttribY;
-            pInterpolatedAttributes[i].m_Vec4Attributes->m_SSEZ = sseVec4AttribZ;
-            pInterpolatedAttributes[i].m_Vec4Attributes->m_SSEW = sseVec3AttribW;
+            pInterpolatedAttributes[i].m_Vec4Attributes[i].m_SSEX = sseVec4AttribX;
+            pInterpolatedAttributes[i].m_Vec4Attributes[i].m_SSEY = sseVec4AttribY;
+            pInterpolatedAttributes[i].m_Vec4Attributes[i].m_SSEZ = sseVec4AttribZ;
+            pInterpolatedAttributes[i].m_Vec4Attributes[i].m_SSEW = sseVec3AttribW;
         }
 
         // vec3 xyz attributes
@@ -1483,9 +1533,9 @@ namespace tyler
                 _mm_mul_ps(sseAttrib0Z, ssef0XY),
                 _mm_add_ps(_mm_mul_ps(sseAttrib1Z, ssef1XY), sseAttrib2Z));
 
-            pInterpolatedAttributes[i].m_Vec3Attributes->m_SSEX = sseVec3AttribX;
-            pInterpolatedAttributes[i].m_Vec3Attributes->m_SSEY = sseVec3AttribY;
-            pInterpolatedAttributes[i].m_Vec3Attributes->m_SSEZ = sseVec3AttribZ;
+            pInterpolatedAttributes[i].m_Vec3Attributes[i].m_SSEX = sseVec3AttribX;
+            pInterpolatedAttributes[i].m_Vec3Attributes[i].m_SSEY = sseVec3AttribY;
+            pInterpolatedAttributes[i].m_Vec3Attributes[i].m_SSEZ = sseVec3AttribZ;
         }
 
         // vec2 xy attributes
@@ -1514,8 +1564,8 @@ namespace tyler
                 _mm_mul_ps(sseAttrib0Y, ssef0XY),
                 _mm_add_ps(_mm_mul_ps(sseAttrib1Y, ssef1XY), sseAttrib2Y));
 
-            pInterpolatedAttributes[i].m_Vec2Attributes->m_SSEX = sseVec2AttribX;
-            pInterpolatedAttributes[i].m_Vec2Attributes->m_SSEY = sseVec2AttribY;
+            pInterpolatedAttributes[i].m_Vec2Attributes[i].m_SSEX = sseVec2AttribX;
+            pInterpolatedAttributes[i].m_Vec2Attributes[i].m_SSEY = sseVec2AttribY;
         }
     }
 }
