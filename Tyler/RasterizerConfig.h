@@ -36,7 +36,7 @@ namespace tyler
         TILE_SIZE_128x128 = 128u,   // 16x16 blocks
         TILE_SIZE_256x256 = 256u,   // 32x32 blocks
         TILE_SIZE_512x512 = 512u,   // 64x64 blocks
-        TILE_SIZE_MAX = 512
+        TILE_SIZE_MAX = 512u
     };
 
     struct RasterizerConfig

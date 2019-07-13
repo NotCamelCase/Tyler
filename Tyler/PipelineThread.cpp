@@ -369,7 +369,7 @@ namespace tyler
             {
                 // TRIVIALREJECT case
 
-                LOG("Prim %d TR-clipped by thread %d", primIdx, m_ThreadIdx);
+                LOG("Prim %d TR'd in FT-clipper by thread %d", primIdx, m_ThreadIdx);
 
                 // Primitive completely outside of one of the clip planes, discard it
                 return false;
@@ -383,7 +383,7 @@ namespace tyler
             {
                 // TRIVIALACCEPT
 
-                LOG("Prim %d TA'd in FT clipper by thread %d", primIdx, m_ThreadIdx);
+                LOG("Prim %d TA'd in FT-clipper by thread %d", primIdx, m_ThreadIdx);
 
                 // Primitive is completely inside view frustum
 
@@ -543,6 +543,10 @@ namespace tyler
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
         ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
 
+        const bool isBboxSmallerThanTile =
+            ((bbox.m_MaxX - bbox.m_MinX) < m_RenderConfig.m_TileSize) &&
+            ((bbox.m_MaxY - bbox.m_MinY) < m_RenderConfig.m_TileSize);
+
         // Given a tile size and frame buffer dimensions, find min/max range of the tiles that fall within bbox computed above
         // which we're going to iterate over, in order to determine if the primitive should be binned or not
 
@@ -614,15 +618,14 @@ namespace tyler
         {
             for (uint32_t tx = minTileX, txx = 0; tx < maxTileX; tx++, txx++)
             {
-                // (txx, tyy) = how many steps are done per dimension
-
-                const float txxOffset = static_cast<float>(txx * m_RenderConfig.m_TileSize);
-                const float tyyOffset = static_cast<float>(tyy * m_RenderConfig.m_TileSize);
-
                 // Using EE coefficients calculated in TriangleSetup stage and positive half-space tests, determine one of three cases possible for each tile:
                 // 1) TrivialReject -- tile within tri's bbox does not intersect tri -> move on
                 // 2) TrivialAccept -- tile within tri's bbox is completely within tri -> emit a full-tile coverage mask
                 // 3) Overlap       -- tile within tri's bbox intersects tri -> bin the triangle to given tile for further rasterization where block/pixel-level coverage masks will be emitted
+
+                // (txx, tyy) = how many steps are done per dimension
+                const float txxOffset = static_cast<float>(txx * m_RenderConfig.m_TileSize);
+                const float tyyOffset = static_cast<float>(tyy * m_RenderConfig.m_TileSize);
 
                 // Step from edge function computed above for the first tile in bbox
                 float edgeFuncTR0 = edgeFunc0 + ((ee0.x * (scTileCornerOffsets[edge0TRCorner].x + txxOffset)) + (ee0.y * (scTileCornerOffsets[edge0TRCorner].y + tyyOffset)));
@@ -654,7 +657,8 @@ namespace tyler
                     bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
                     bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
                     bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
-                    if (TAForEdge0 && TAForEdge1 && TAForEdge2)
+                    if (!isBboxSmallerThanTile &&
+                        (TAForEdge0 && TAForEdge1 && TAForEdge2))
                     {
                         // TrivialAccept
                         // Tile is completely inside of the triangle, no further rasterization is needed,
@@ -665,13 +669,13 @@ namespace tyler
                         // Append tile to the rasterizer queue
                         m_pRenderEngine->EnqueueTileForRasterization(m_pRenderEngine->GetGlobalTileIndex(tx, ty));
 
-                        // Emit full-tile coverage mask
                         CoverageMask mask;
                         mask.m_SampleX = static_cast<uint32_t>(tilePosX + txxOffset); // Based off of first tile position calculated above
                         mask.m_SampleY = static_cast<uint32_t>(tilePosY + tyyOffset); // Based off of first tile position calculated above
                         mask.m_PrimIdx = primIdx;
                         mask.m_Type = CoverageMaskType::TILE;
 
+                        // Emit full-tile coverage mask
                         m_pRenderEngine->AppendCoverageMask(
                             m_ThreadIdx,
                             m_pRenderEngine->GetGlobalTileIndex(tx, ty),
@@ -727,7 +731,7 @@ namespace tyler
                     // Get next (global) primitive index to be rasterized
                     uint32_t primIdx = perThreadBin[p];
 
-                    // Copy prim's bbox and clamp it to the tile edges
+                    // Copy prim's bbox to clamp it to the tile edges
                     Rect2D bbox = m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx];
                     bbox.m_MinX = glm::max(bbox.m_MinX, tilePosX);
                     bbox.m_MinY = glm::max(bbox.m_MinY, tilePosY);
@@ -737,12 +741,17 @@ namespace tyler
                     // In case bbox is screwed up after clamping to the tile edges
                     ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
 
+                    const bool isBboxSmallerThanBlock =
+                        ((bbox.m_MaxX - bbox.m_MinX) < g_scPixelBlockSize) &&
+                        ((bbox.m_MaxY - bbox.m_MinY) < g_scPixelBlockSize);
+
                     // Given a fixed 8x8 block and tile size, find min/max range of the blocks that fall within bbox computed above
                     // which we're going to iterate over, in order to determine how blocks within tile are to be rasterized
 
                     // Use floor(), min indices are inclusive
                     uint32_t minBlockX = static_cast<uint32_t>(glm::floor((bbox.m_MinX - tilePosX) / g_scPixelBlockSize));
                     uint32_t minBlockY = static_cast<uint32_t>(glm::floor((bbox.m_MinY - tilePosY) / g_scPixelBlockSize));
+
                     // Use ceil(), max indices are exclusive
                     uint32_t maxBlockX = static_cast<uint32_t>(glm::ceil((bbox.m_MaxX - tilePosX) / g_scPixelBlockSize));
                     uint32_t maxBlockY = static_cast<uint32_t>(glm::ceil((bbox.m_MaxY - tilePosY) / g_scPixelBlockSize));
@@ -797,13 +806,12 @@ namespace tyler
                     {
                         for (uint32_t bx = minBlockX, bxx = 0; bx < maxBlockX; bx++, bxx++)
                         {
-                            // (bxx, byy) = How many steps are done per dimension
-
                             // Using EE coefficients calculated in TriangleSetup stage and positive half-space tests, determine one of three cases possible for each block:
                             // 1) TrivialReject -- block within tri's bbox does not intersect tri -> move on
                             // 2) TrivialAccept -- block within tri's bbox is completely within tri -> emit a full-block coverage mask
                             // 3) Overlap       -- block within tri's bbox intersects tri -> descend into block level to emit coverage masks at pixel granularity
 
+                            // (bxx, byy) = How many steps are done per dimension
                             const float bxxOffset = static_cast<float>(bxx * g_scPixelBlockSize);
                             const float byyOffset = static_cast<float>(byy * g_scPixelBlockSize);
 
@@ -837,7 +845,8 @@ namespace tyler
                                 bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
                                 bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
                                 bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
-                                if (TAForEdge0 && TAForEdge1 && TAForEdge2)
+                                if (!isBboxSmallerThanBlock &&
+                                    (TAForEdge0 && TAForEdge1 && TAForEdge2))
                                 {
                                     // TrivialAccept
                                     // Block is completely inside of the triangle, emit a full-block coverage mask
@@ -850,6 +859,7 @@ namespace tyler
                                     mask.m_PrimIdx = primIdx;
                                     mask.m_Type = CoverageMaskType::BLOCK;
 
+                                    // Emit full-block coverage mask
                                     m_pRenderEngine->AppendCoverageMask(
                                         m_ThreadIdx,
                                         nextTileIdx,
@@ -867,9 +877,9 @@ namespace tyler
                                     float blockPosY = (firstBlockWithinBBoxY + byyOffset);
 
                                     // Compute E(x, y) = (x * a) + (y * b) c at block origin once
-                                    __m128 sseEdge0FuncAtBlockOrigin = _mm_set1_ps(ee0.z + (ee0.x * blockPosX) + (ee0.y * blockPosY));
-                                    __m128 sseEdge1FuncAtBlockOrigin = _mm_set1_ps(ee1.z + (ee1.x * blockPosX) + (ee1.y * blockPosY));
-                                    __m128 sseEdge2FuncAtBlockOrigin = _mm_set1_ps(ee2.z + (ee2.x * blockPosX) + (ee2.y * blockPosY));
+                                    __m128 sseEdge0FuncAtBlockOrigin = _mm_set1_ps(ee0.z + ((ee0.x * blockPosX) + (ee0.y * blockPosY)));
+                                    __m128 sseEdge1FuncAtBlockOrigin = _mm_set1_ps(ee1.z + ((ee1.x * blockPosX) + (ee1.y * blockPosY)));
+                                    __m128 sseEdge2FuncAtBlockOrigin = _mm_set1_ps(ee2.z + ((ee2.x * blockPosX) + (ee2.y * blockPosY)));
 
                                     // Store edge 0 equation coefficients
                                     __m128 sseEdge0A4 = _mm_set_ps1(ee0.x);
@@ -1042,8 +1052,6 @@ namespace tyler
         uint32_t nextTileIdx;
         while ((nextTileIdx = m_pRenderEngine->FetchNextTileIndexForFragmentShading()) != g_scInvalidTileIndex)
         {
-            LOG("Thread %d fragment shader for tile %d\n", m_ThreadIdx, nextTileIdx);
-
             ASSERT(nextTileIdx < (m_pRenderEngine->m_NumTilePerRow * m_pRenderEngine->m_NumTilePerColumn));
 
             // Fragment-shade visible samples consuming coverage masks emitted previously by the rasterizer stage
@@ -1064,19 +1072,25 @@ namespace tyler
                         ASSERT(pCoverageMaskBuffer->m_AllocationList[numAlloc].m_pData != nullptr);
 
                         CoverageMask* pMask = &currentSlot.m_pData[numMask];
+
+                        // First fetch EE coefficients that will be used (in addition to edge in/out tests) for perspective-correct interpolation of vertex attributes
+                        const glm::vec3& ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 0];
+                        const glm::vec3& ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 1];
+                        const glm::vec3& ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 2];
+
                         switch (pMask->m_Type)
                         {
                         case CoverageMaskType::TILE:
                             LOG("Thread %d fragment-shading tile %d\n", m_ThreadIdx, nextTileIdx);
-                            FragmentShadeTile(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx);
+                            FragmentShadeTile(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx, ee0, ee1, ee2);
                             break;
                         case CoverageMaskType::BLOCK:
                             LOG("Thread %d fragment-shading blocks\n", m_ThreadIdx);
-                            FragmentShadeBlock(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx);
+                            FragmentShadeBlock(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx, ee0, ee1, ee2);
                             break;
                         case CoverageMaskType::QUAD:
-                            LOG("Thread %d fragment-shading coverage masks\n", m_ThreadIdx);
-                            FragmentShadeQuad(pMask);
+                            LOG("Thread %d fragment-shading coverage masks\n", m_ThreadIdx, ee0, ee1, ee2);
+                            FragmentShadeQuad(pMask, ee0, ee1, ee2);
                             break;
                         default:
                             ASSERT(false);
@@ -1088,7 +1102,7 @@ namespace tyler
         }
     }
 
-    void PipelineThread::FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx)
+    void PipelineThread::FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2)
     {
         const uint32_t numBlockInTile = m_RenderConfig.m_TileSize / g_scPixelBlockSize;
 
@@ -1096,22 +1110,24 @@ namespace tyler
         {
             for (uint32_t px = 0; px < numBlockInTile; px++)
             {
-                FragmentShadeBlock(tilePosX + px * g_scPixelBlockSize, tilePosY + py * g_scPixelBlockSize, primIdx);
+                FragmentShadeBlock(
+                    tilePosX + px * g_scPixelBlockSize,
+                    tilePosY + py * g_scPixelBlockSize,
+                    primIdx,
+                    ee0,
+                    ee1,
+                    ee2);
             }
         }
     }
 
-    void PipelineThread::FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx)
+    void PipelineThread::FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2)
     {
         FragmentShader FS = m_pRenderEngine->m_FragmentShader;
         ASSERT(FS != nullptr);
 
+        // Temp storage for interpolated vertex attributes
         InterpolatedAttributes interpolatedAttribs;
-
-        // First fetch EE coefficients that will be used (in addition to edge in/out tests) for perspective-correct interpolation of vertex attributes
-        const glm::vec3& ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0];
-        const glm::vec3& ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1];
-        const glm::vec3& ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
 
         // Store EE coefficients
         __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
@@ -1137,8 +1153,6 @@ namespace tyler
         // Loop over 8x8 pixels
         for (uint32_t py = 0; py < g_scPixelBlockSize; py++)
         {
-            //TODO: Update frame/depth buffer w/ SIMD!
-
             for (uint32_t px = 0; px < g_scNumEdgeTestsPerRow; px++)
             {
                 uint32_t sampleX = blockPosX + (g_scSIMDWidth * px);
@@ -1161,8 +1175,7 @@ namespace tyler
                     &ssef1XY);
 
                 // Interpolate Z (4 samples)
-                __m128 sseZInterpolated;
-                InterpolateDepthValues(primIdx, ssef0XY, ssef1XY, &sseZInterpolated);
+                __m128 sseZInterpolated = InterpolateDepthValues(primIdx, ssef0XY, ssef1XY);
 
                 // Load current depth buffer contents
                 __m128 sseDepthCurrent = m_pRenderEngine->FetchDepthBuffer(sampleX, sampleY);
@@ -1192,7 +1205,7 @@ namespace tyler
         }
     }
 
-    void PipelineThread::FragmentShadeQuad(CoverageMask* pMask)
+    void PipelineThread::FragmentShadeQuad(CoverageMask* pMask, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2)
     {
         ASSERT(pMask != nullptr);
 
@@ -1204,11 +1217,6 @@ namespace tyler
 
         // Parameter interpolation basis functions
         __m128 ssef0XY, ssef1XY;
-
-        // Fetch EE coefficients that will be used (in addition to edge in/out tests) for perspective-correct interpolation of vertex attributes
-        const glm::vec3& ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 0];
-        const glm::vec3& ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 1];
-        const glm::vec3& ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 2];
 
         // Store edge 0 equation coefficients
         __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
@@ -1242,8 +1250,7 @@ namespace tyler
             &ssef1XY);
 
         // Interpolate depth values prior to depth test
-        __m128 sseZInterpolated;
-        InterpolateDepthValues(pMask->m_PrimIdx, ssef0XY, ssef1XY, &sseZInterpolated);
+        __m128 sseZInterpolated = InterpolateDepthValues(pMask->m_PrimIdx, ssef0XY, ssef1XY);
 
         // Load current depth buffer contents
         __m128 sseDepthCurrent = m_pRenderEngine->FetchDepthBuffer(pMask->m_SampleX, pMask->m_SampleY);
@@ -1289,8 +1296,6 @@ namespace tyler
 
     Rect2D PipelineThread::ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height) const
     {
-        Rect2D bbox;
-
         // Compute NDC vertices; confined to 2D because we don't need z here
         glm::vec2 v0NDC = glm::vec2(v0Clip.x, v0Clip.y) / v0Clip.w;
         glm::vec2 v1NDC = glm::vec2(v1Clip.x, v1Clip.y) / v1Clip.w;
@@ -1307,6 +1312,7 @@ namespace tyler
         float ymin = glm::min(v0Raster.y, glm::min(v1Raster.y, v2Raster.y));
         float ymax = glm::max(v0Raster.y, glm::max(v1Raster.y, v2Raster.y));
 
+        Rect2D bbox;
         bbox.m_MinX = xmin;
         bbox.m_MinY = ymin;
         bbox.m_MaxX = xmax;
@@ -1426,7 +1432,7 @@ namespace tyler
         // Basis functions f0, f1, f2 sum to 1, e.g. f0(x,y) + f1(x,y) + f2(x,y) = 1 so we'll skip computing f2(x,y) explicitly
     }
 
-    void PipelineThread::InterpolateDepthValues(uint32_t primIdx, const __m128& ssef0XY, const __m128& ssef1XY, __m128* pZInterpolated)
+    __m128 PipelineThread::InterpolateDepthValues(uint32_t primIdx, const __m128& ssef0XY, const __m128& ssef1XY)
     {
         // Fetch interpolation deltas computed after VS was returned
         const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_pInterpolatedZValues[primIdx];
@@ -1436,7 +1442,7 @@ namespace tyler
         __m128 sseAttrib1 = _mm_set_ps1(attrib0Vec3.y);
         __m128 sseAttrib2 = _mm_set_ps1(attrib0Vec3.z);
 
-        *pZInterpolated = _mm_add_ps(sseAttrib2,
+         return _mm_add_ps(sseAttrib2,
             _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
                 _mm_mul_ps(sseAttrib1, ssef1XY)));
     }

@@ -9,6 +9,13 @@ namespace tyler
 {
     struct PipelineThread;
 
+    struct EdgeCoefficients
+    {
+        glm::vec3   m_EE0;
+        glm::vec3   m_EE1;
+        glm::vec3   m_EE2;
+    };
+
     struct TriangleSetupBuffers
     {
         // Coefficients of three edge equations
@@ -17,13 +24,13 @@ namespace tyler
         // Interpolated z coordinates of three vertices
         glm::vec3*  m_pInterpolatedZValues;
 
-        // Cache bounding boxes computed during binning for use in rasterization
-        Rect2D*     m_pPrimBBoxes;
-
         // Interpolation deltas computed after VS that'll be used for perspective-correct interpolation of vertex attributes
         glm::vec3*  m_Attribute4Deltas[g_scMaxVertexAttributes];
         glm::vec3*  m_Attribute3Deltas[g_scMaxVertexAttributes];
         glm::vec3*  m_Attribute2Deltas[g_scMaxVertexAttributes];
+
+        // Cache bounding boxes computed during binning for use in rasterization
+        Rect2D*     m_pPrimBBoxes;
     };
 
     struct RenderEngine

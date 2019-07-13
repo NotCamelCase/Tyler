@@ -52,9 +52,9 @@ namespace tyler
         // Fragment Shading
         void ExecuteFragmentShader();
 
-        void FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx);
-        void FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx);
-        void FragmentShadeQuad(CoverageMask* pMask);        
+        void FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2);
+        void FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2);
+        void FragmentShadeQuad(CoverageMask* pMask, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2);
 
         // Given three clip-space verices, compute the bounding box of a triangle clamped to width/height
         Rect2D ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height) const;
@@ -84,11 +84,10 @@ namespace tyler
             __m128* pSSEf1XY);
 
         // Using basis functions, interpolated Z values (for depth test)
-        void InterpolateDepthValues(
+        __m128 InterpolateDepthValues(
             uint32_t primIdx,
             const __m128& ssef0XY,
-            const __m128& ssef1XY,
-            __m128* pZInterpolated);
+            const __m128& ssef1XY);
 
         // Using basis functions computed already, interpolate each attribute channel present
         void InterpolateVertexAttributes(
