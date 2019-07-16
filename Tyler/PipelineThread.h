@@ -11,7 +11,6 @@ namespace tyler
     // Thread execution state
     enum class ThreadStatus : uint8_t
     {
-        IDLE,                               // Waiting for input arrival by RenderEngine
         DRAWCALL_TOP,                       // Input data received, start processing drawcall
         DRAWCALL_GEOMETRY,                  // Geometry processing in progress
         DRAWCALL_BINNING,                   // Binning in progress
@@ -20,7 +19,8 @@ namespace tyler
         DRAWCALL_SYNC_POINT_POST_RASTER,    // Sync post rasterization
         DRAWCALL_FRAGMENTSHADER,            // Fragment processing in progress
         DRAWCALL_BOTTOM,                    // Drawcall processed
-        TERMINATED                          // Thread shut down requested
+        TERMINATED,                         // Thread shut down requested
+        IDLE                                // Waiting for input arrival by RenderEngine
     };
 
     struct PipelineThread
@@ -38,13 +38,13 @@ namespace tyler
         void ExecuteVertexShader(uint32_t drawIdx, uint32_t primIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip);
 
         // Clipper (full-triangle only)
-        bool ExecuteFullTriangleClipping(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
+        bool ExecuteFullTriangleClipping(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, Rect2D* pBbox);
 
         // Triangle Setup + Culling
         bool ExecuteTriangleSetupAndCull(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
 
         // Binner
-        void ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
+        void ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, const Rect2D& bbox);
 
         // Rasterizer
         void ExecuteRasterizer();

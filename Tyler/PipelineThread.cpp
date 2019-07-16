@@ -58,8 +58,11 @@ namespace tyler
             // VS
             ExecuteVertexShader(drawIdx, primIdx, &v0Clip, &v1Clip, &v2Clip);
 
+            // Bbox of the primitive which will be computed during clipping
+            Rect2D bbox;
+
             // CLIPPER
-            if (!ExecuteFullTriangleClipping(primIdx, v0Clip, v1Clip, v2Clip))
+            if (!ExecuteFullTriangleClipping(primIdx, v0Clip, v1Clip, v2Clip, &bbox))
             {
                 // Triangle clipped, proceed iteration with next primitive
                 continue;
@@ -73,7 +76,7 @@ namespace tyler
             }
 
             // BINNER
-            ExecuteBinner(primIdx, v0Clip, v1Clip, v2Clip);
+            ExecuteBinner(primIdx, v0Clip, v1Clip, v2Clip, bbox);
         }
 
         ASSERT(m_CurrentState.load() <= ThreadStatus::DRAWCALL_BINNING);
@@ -82,9 +85,7 @@ namespace tyler
 
         // To preserve rendering order, we must ensure that all threads finish binning primitives to tiles
         // before rasterization is started. To do that, we will stall all threads to sync @DRAWCALL_RASTERIZATION
-
-        // All stages up to binning completed, set state to post binning
-        // and stall until all PipelineThreads complete binning
+        // Set state to post binning and stall until all PipelineThreads complete binning
         m_CurrentState.store(ThreadStatus::DRAWCALL_SYNC_POINT_POST_BINNER, std::memory_order_release);
         m_pRenderEngine->WaitForPipelineThreadsToCompleteBinning();
 
@@ -92,12 +93,14 @@ namespace tyler
 
         // State must have been set to rasterization by RenderEngine
         // when binnnig is "signaled" to have ended
-        ASSERT(m_CurrentState.load() == ThreadStatus::DRAWCALL_RASTERIZATION);
+        ASSERT(m_CurrentState.load() < ThreadStatus::DRAWCALL_SYNC_POINT_POST_RASTER);
 
         LOG("Thread %d rasterizing...\n", m_ThreadIdx);
 
         // RASTERIZATION
         ExecuteRasterizer();
+
+        LOG("Thread %d post-raster sync point\n", m_ThreadIdx);
 
         // Rasterization completed, set state to post raster and
         // stall until all PipelineThreads complete rasterization.
@@ -105,11 +108,6 @@ namespace tyler
         // reach the end of tile queue while x threads are still busy rasterizing tile blocks,
         // we must ensure that none of the (N-x) non-busy threads will go ahead and start fragment-shading tiles
         // whose blocks could be currently still rasterized by x remaining threads
-
-        LOG("Thread %d post-raster sync point\n", m_ThreadIdx);
-
-        // All stages up to rasterization completed, set state to post raster
-        // and stall until all PipelineThreads complete rasterization
         m_CurrentState.store(ThreadStatus::DRAWCALL_SYNC_POINT_POST_RASTER, std::memory_order_release);
         m_pRenderEngine->WaitForPipelineThreadsToCompleteRasterization();
 
@@ -279,8 +277,10 @@ namespace tyler
         return false;
     }
 
-    bool PipelineThread::ExecuteFullTriangleClipping(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip)
+    bool PipelineThread::ExecuteFullTriangleClipping(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, Rect2D* pBbox)
     {
+        ASSERT(pBbox != nullptr);
+
         if constexpr (g_scFullTriangleClippingEnabled)
         {
             // Clip-space positions are to be bounded by:
@@ -396,6 +396,8 @@ namespace tyler
                 bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
                 bbox.m_MaxY = glm::min(height, bbox.m_MaxY);
 
+                *pBbox = bbox;
+
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
                 
@@ -419,6 +421,8 @@ namespace tyler
                     width,
                     height
                 };
+
+                *pBbox = bbox;
 
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
@@ -452,6 +456,8 @@ namespace tyler
                 bbox.m_MaxX = glm::min(width, bbox.m_MaxX);
                 bbox.m_MinY = glm::max(0.f, bbox.m_MinY);
                 bbox.m_MaxY = glm::min(height, bbox.m_MaxY);
+
+                *pBbox = bbox;
 
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
@@ -526,7 +532,7 @@ namespace tyler
         }
     }
 
-    void PipelineThread::ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip)
+    void PipelineThread::ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, const Rect2D& bbox)
     {
         LOG("Thread %d binning prim %d\n", m_ThreadIdx, primIdx);
 
@@ -535,9 +541,6 @@ namespace tyler
 
         float fbWidth = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
         float fbHeight = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
-
-        // Fetch bbox of the triangle computed during clipping
-        Rect2D bbox = m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx];
         
         // FT clipper must have clamped bbox to screen extents!
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
