@@ -9,13 +9,6 @@ namespace tyler
 {
     struct PipelineThread;
 
-    struct EdgeCoefficients
-    {
-        glm::vec3   m_EE0;
-        glm::vec3   m_EE1;
-        glm::vec3   m_EE2;
-    };
-
     struct TriangleSetupBuffers
     {
         // Coefficients of three edge equations

@@ -141,7 +141,7 @@ namespace tyler
         struct Slot
         {
             // Backing buffer memory
-            CoverageMask*   m_pData;
+            CoverageMask* m_pData;
 
             // Number of coverage masks the slot currently holds
             uint32_t        m_AllocationCount;
