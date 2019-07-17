@@ -511,25 +511,18 @@ namespace tyler
         // det(M) < 0  -> back-facing triangle
         float detM = (c0 * v0Homogen.w) + (c1 * v1Homogen.w) + (c2 * v2Homogen.w);
 
-        //TODO: Proper culling!
-        //TODO: If to render back-facing tris, invert the signs of elements of adj(M)
-        if (detM > 0.f)
-        {
-            // Triangle not culled, assign computed EE coefficients for given primitive
-            m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0] = { a0, b0, c0 };
-            m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1] = { a1, b1, c1 };
-            m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2] = { a2, b2, c2 };
+        // Assign computed EE coefficients for given primitive
+        m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 0] = { a0, b0, c0 };
+        m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 1] = { a1, b1, c1 };
+        m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2] = { a2, b2, c2 };
 
-            // Store clip-space Z interpolation deltas in the setup buffer that will be used for perspective-correct interpolation of Z
-            m_pRenderEngine->m_SetupBuffers.m_pInterpolatedZValues[primIdx] = { (v0Clip.z - v2Clip.z), (v1Clip.z - v2Clip.z), v2Clip.z };
+        // Store clip-space Z interpolation deltas in the setup buffer that will be used for perspective-correct interpolation of Z
+        m_pRenderEngine->m_SetupBuffers.m_pInterpolatedZValues[primIdx] = { (v0Clip.z - v2Clip.z), (v1Clip.z - v2Clip.z), v2Clip.z };
 
-            return true;
-        }
-        else
-        {
-            // Triangle culled, do nothing else
-            return false;
-        }
+        //TODO: Proper culling? Render back-facing tris by flipping sign of EEs?!
+
+        // Return whether the primitive should be culled
+        return detM > 0.f;
     }
 
     void PipelineThread::ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, const Rect2D& bbox)
