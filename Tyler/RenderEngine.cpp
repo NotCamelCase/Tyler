@@ -257,6 +257,7 @@ namespace tyler
         // Clear VS$ data of each thread
         for (PipelineThread* pThread : m_PipelineThreads)
         {
+            ASSERT(pThread != nullptr);
             pThread->m_NumVertexCacheEntries = 0u;
 
 #ifdef _DEBUG
@@ -303,6 +304,15 @@ namespace tyler
 
         // Reset rasterizer queue
         m_RasterizerQueue.ResetQueue();
+
+#ifdef _DEBUG
+        // Clear per-thread drawparams for debug
+        for (PipelineThread* pThread : m_PipelineThreads)
+        {
+            ASSERT(pThread != nullptr);
+            memset(&pThread->m_ActiveDrawParams, 0x0, sizeof(PipelineThread::DrawParams));
+        }
+#endif
     }
 
     void RenderEngine::WaitForPipelineThreadsToCompleteProcessingDrawcall() const
