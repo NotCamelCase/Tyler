@@ -1453,10 +1453,10 @@ namespace tyler
         for (uint32_t i = 0; i < m_pRenderEngine->m_ShaderMetadata.m_NumVec4Attributes; i++)
         {
             // Fetch interpolation deltas computed after VS was returned
-            const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][(primIdx * 4) + 0];
-            const glm::vec3& attrib1Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][(primIdx * 4) + 1];
-            const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][(primIdx * 4) + 2];
-            const glm::vec3& attrib3Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][(primIdx * 4) + 3];
+            const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][primIdx * 4 + 0];
+            const glm::vec3& attrib1Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][primIdx * 4 + 1];
+            const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][primIdx * 4 + 2];
+            const glm::vec3& attrib3Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute4Deltas[i][primIdx * 4 + 3];
 
             // vec4::x attribute to be interpolated
             __m128 sseAttrib0X = _mm_set_ps1(attrib0Vec3.x);
@@ -1504,9 +1504,9 @@ namespace tyler
         for (uint32_t i = 0; i < m_pRenderEngine->m_ShaderMetadata.m_NumVec3Attributes; i++)
         {
             // Fetch interpolation deltas computed after VS was returned
-            const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][(primIdx * 3) + 0];
-            const glm::vec3& attrib1Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][(primIdx * 3) + 1];
-            const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][(primIdx * 3) + 2];
+            const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][primIdx * 3 + 0];
+            const glm::vec3& attrib1Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][primIdx * 3 + 1];
+            const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute3Deltas[i][primIdx * 3 + 2];
 
             // vec3::x attribute to be interpolated
             __m128 sseAttrib0X = _mm_set_ps1(attrib0Vec3.x);
@@ -1544,9 +1544,8 @@ namespace tyler
         for (uint32_t i = 0; i < m_pRenderEngine->m_ShaderMetadata.m_NumVec2Attributes; i++)
         {
             // Fetch interpolation deltas computed after VS was returned
-            const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute2Deltas[i][(primIdx * 2) + 0];
-            const glm::vec3& attrib1Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute2Deltas[i][(primIdx * 2) + 1];
-            const glm::vec3& attrib2Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute2Deltas[i][(primIdx * 2) + 2];
+            const glm::vec3& attrib0Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute2Deltas[i][primIdx * 2 + 0];
+            const glm::vec3& attrib1Vec3 = m_pRenderEngine->m_SetupBuffers.m_Attribute2Deltas[i][primIdx * 2 + 1];
 
             // vec3::x attribute to be interpolated
             __m128 sseAttrib0X = _mm_set_ps1(attrib0Vec3.x);
