@@ -201,7 +201,7 @@ namespace tyler
 
                 CacheVertexData(vertexIdx1, *pV1Clip, *pTempVertexAttrib1);
             }
-            
+
             if (PerformVertexCacheLookup(vertexIdx2, &cacheEntry2))
             {
                 // Vertex 2 is found in the cache, skip VS and fetch cached data
@@ -400,7 +400,7 @@ namespace tyler
 
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
-                
+
                 return true;
             }
             else
@@ -461,7 +461,7 @@ namespace tyler
 
                 // Cache bbox of the primitive
                 m_pRenderEngine->m_SetupBuffers.m_pPrimBBoxes[primIdx] = bbox;
-                
+
                 // No clipping 
                 return true;
             }
@@ -534,7 +534,7 @@ namespace tyler
 
         float fbWidth = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Width);
         float fbHeight = static_cast<float>(m_pRenderEngine->m_Framebuffer.m_Height);
-        
+
         // FT clipper must have clamped bbox to screen extents!
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
         ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
@@ -1179,9 +1179,11 @@ namespace tyler
                 // Perform LESS_THAN_EQUAL depth test
                 __m128 sseDepthRes = _mm_cmple_ps(sseZInterpolated, sseDepthCurrent);
 
-                // Pseudo Early-Z test
+                // Apply Early-Z test for block/tiles only!
                 if (_mm_movemask_ps(sseDepthRes) == 0x0)
                 {
+                    LOG("Prim %d killed in Early-Z optimization at (%d, %d) by thread %d\n", primIdx, sampleX, sampleY, m_ThreadIdx);
+
                     // No sample being processed passes depth test, skip invoking FS altogether
                     continue;
                 }
@@ -1253,13 +1255,6 @@ namespace tyler
 
         // Perform LESS_THAN_EQUAL depth test
         __m128 sseDepthRes = _mm_cmple_ps(sseZInterpolated, sseDepthCurrent);
-
-        // Pseudo Early-Z test
-        if (_mm_movemask_ps(sseDepthRes) == 0x0)
-        {
-            // No sample within current quad of fragments being processed passes depth test, skip it
-            return;
-        }
 
         // Interpolate active vertex attributes
         InterpolateVertexAttributes(pMask->m_PrimIdx, ssef0XY, ssef1XY, &interpolatedAttribs);
@@ -1415,8 +1410,7 @@ namespace tyler
                 _mm_mul_ps(sseX4, sseA4Edge2)));
 
         // Compute F(x,y) = F0(x,y) + F1(x,y) + F2(x,y)
-        __m128 sseR4 = _mm_add_ps(sseF2XY4,
-            _mm_add_ps(sseF0XY4, sseF1XY4));
+        __m128 sseR4 = _mm_add_ps(sseF2XY4, _mm_add_ps(sseF0XY4, sseF1XY4));
 
         // Compute perspective correction factor
         sseR4 = _mm_rcp_ps(sseR4);
@@ -1438,7 +1432,7 @@ namespace tyler
         __m128 sseAttrib1 = _mm_set_ps1(attrib0Vec3.y);
         __m128 sseAttrib2 = _mm_set_ps1(attrib0Vec3.z);
 
-         return _mm_add_ps(sseAttrib2,
+        return _mm_add_ps(sseAttrib2,
             _mm_add_ps(_mm_mul_ps(sseAttrib0, ssef0XY),
                 _mm_mul_ps(sseAttrib1, ssef1XY)));
     }
