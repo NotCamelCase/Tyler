@@ -60,13 +60,13 @@ namespace tyler
         }
 
         // Return next available tile index to be rasterized from tile queue
-        uint32_t FetchNextTileIndexForRasterization()
+        uint32_t FetchNextTileForRasterization()
         {
             return m_RasterizerQueue.FetchNextTileIndex();
         }
 
         // Return next available tile index to be fragment-shaded from tile queue
-        uint32_t FetchNextTileIndexForFragmentShading()
+        uint32_t FetchNextTileForFragmentShading()
         {
             return m_RasterizerQueue.RemoveTileIndex();
         }

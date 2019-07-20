@@ -697,7 +697,7 @@ namespace tyler
     {
         // Request next (global) index of the tile to be rasterized at block level from RenderEngine
         uint32_t nextTileIdx;
-        while ((nextTileIdx = m_pRenderEngine->FetchNextTileIndexForRasterization()) != g_scInvalidTileIndex)
+        while ((nextTileIdx = m_pRenderEngine->FetchNextTileForRasterization()) != g_scInvalidTileIndex)
         {
             LOG("Thread %d rasterizing tile %d\n", m_ThreadIdx, nextTileIdx);
 
@@ -1046,7 +1046,7 @@ namespace tyler
     void PipelineThread::ExecuteFragmentShader()
     {
         uint32_t nextTileIdx;
-        while ((nextTileIdx = m_pRenderEngine->FetchNextTileIndexForFragmentShading()) != g_scInvalidTileIndex)
+        while ((nextTileIdx = m_pRenderEngine->FetchNextTileForFragmentShading()) != g_scInvalidTileIndex)
         {
             ASSERT(nextTileIdx < (m_pRenderEngine->m_NumTilePerRow * m_pRenderEngine->m_NumTilePerColumn));
 
@@ -1068,6 +1068,11 @@ namespace tyler
                         ASSERT(pCoverageMaskBuffer->m_AllocationList[numAlloc].m_pData != nullptr);
 
                         CoverageMask* pMask = &currentSlot.m_pData[numMask];
+
+                        // In many cases, next N coverage masks will have been generated for the same primitive
+                        // that we're fragment-shading at tile, block or fragment levels here,
+                        // it could be optimized so that the EE coefficients of the same primitive won't be fetched
+                        // from memory over and over again, unsure what gain, if anything it'd yield...
 
                         // First fetch EE coefficients that will be used (in addition to edge in/out tests) for perspective-correct interpolation of vertex attributes
                         const glm::vec3& ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 0];

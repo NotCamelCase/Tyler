@@ -356,7 +356,8 @@ namespace tyler
 
                 ThreadStatus expected = ThreadStatus::DRAWCALL_SYNC_POINT_POST_BINNER;
                 threadsComplete = threadsComplete &&
-                    (pThread->m_CurrentState.compare_exchange_weak(expected, ThreadStatus::DRAWCALL_RASTERIZATION, std::memory_order_acq_rel) || (expected >= ThreadStatus::DRAWCALL_RASTERIZATION));
+                    (pThread->m_CurrentState.compare_exchange_weak(expected, ThreadStatus::DRAWCALL_RASTERIZATION, std::memory_order_acq_rel) ||
+                    (expected >= ThreadStatus::DRAWCALL_RASTERIZATION));
 
                 ASSERT((expected >= ThreadStatus::DRAWCALL_TOP) && (expected <= ThreadStatus::DRAWCALL_FRAGMENTSHADER));
             }
@@ -378,7 +379,8 @@ namespace tyler
 
                 ThreadStatus expected = ThreadStatus::DRAWCALL_SYNC_POINT_POST_RASTER;
                 threadsComplete = threadsComplete &&
-                    (pThread->m_CurrentState.compare_exchange_weak(expected, ThreadStatus::DRAWCALL_FRAGMENTSHADER, std::memory_order_acq_rel) || (expected >= ThreadStatus::DRAWCALL_FRAGMENTSHADER));
+                    (pThread->m_CurrentState.compare_exchange_weak(expected, ThreadStatus::DRAWCALL_FRAGMENTSHADER, std::memory_order_acq_rel) ||
+                    (expected >= ThreadStatus::DRAWCALL_FRAGMENTSHADER));
 
                 ASSERT((expected >= ThreadStatus::DRAWCALL_RASTERIZATION) && (expected <= ThreadStatus::DRAWCALL_BOTTOM));
             }
