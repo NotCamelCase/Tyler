@@ -8,6 +8,22 @@ namespace tyler
     struct RenderEngine;
     struct CoverageMask;
 
+    // POD struct to pass SIMD registers initialized with EE coefficients to fragment-shader routines more easily
+    struct SIMDEdgeCoefficients
+    {
+        __m128  m_SSEA4Edge0;
+        __m128  m_SSEA4Edge1;
+        __m128  m_SSEA4Edge2;
+
+        __m128  m_SSEB4Edge0;
+        __m128  m_SSEB4Edge1;
+        __m128  m_SSEB4Edge2;
+
+        __m128  m_SSEC4Edge0;
+        __m128  m_SSEC4Edge1;
+        __m128  m_SSEC4Edge2;
+    };
+
     // Thread execution state
     enum class ThreadStatus : uint8_t
     {
@@ -54,9 +70,22 @@ namespace tyler
         // Fragment Shading
         void ExecuteFragmentShader();
 
-        void FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2);
-        void FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2);
-        void FragmentShadeQuad(CoverageMask* pMask, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2);
+        // Fragment shader routines at tile/block/fragment levels
+        void FragmentShadeTile(
+            uint32_t tilePosX,
+            uint32_t tilePosY,
+            uint32_t primIdx,
+            const SIMDEdgeCoefficients& simdEERegs);
+
+        void FragmentShadeBlock(
+            uint32_t blockPosX,
+            uint32_t blockPosY,
+            uint32_t primIdx,
+            const SIMDEdgeCoefficients& simdEERegs);
+
+        void FragmentShadeQuad(
+            CoverageMask* pMask,
+            const SIMDEdgeCoefficients& simdEERegs);
 
         // Given three clip-space verices, compute the bounding box of a triangle clamped to width/height
         Rect2D ComputeBoundingBox(const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, float width, float height) const;
@@ -73,15 +102,7 @@ namespace tyler
         void ComputeParameterBasisFunctions(
             uint32_t sampleX,
             uint32_t sampleY,
-            const __m128& sseA4Edge0,
-            const __m128& sseB4Edge0,
-            const __m128& sseC4Edge0,
-            const __m128& sseA4Edge1,
-            const __m128& sseB4Edge1,
-            const __m128& sseC4Edge1,
-            const __m128& sseA4Edge2,
-            const __m128& sseB4Edge2,
-            const __m128& sseC4Edge2,
+            const SIMDEdgeCoefficients& simdEERegs,
             __m128* pSSEf0XY,
             __m128* pSSEf1XY);
 

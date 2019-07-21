@@ -1096,23 +1096,51 @@ namespace tyler
                         // from memory over and over again, unsure what gain, if anything it'd yield...
 
                         // First fetch EE coefficients that will be used (in addition to edge in/out tests) for perspective-correct interpolation of vertex attributes
-                        const glm::vec3& ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 0];
-                        const glm::vec3& ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 1];
-                        const glm::vec3& ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 2];
+                        const glm::vec3 ee0 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 0];
+                        const glm::vec3 ee1 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 1];
+                        const glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * pMask->m_PrimIdx + 2];
+
+                        // Store edge 0 coefficients
+                        __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
+                        __m128 sseB4Edge0 = _mm_set_ps1(ee0.y);
+                        __m128 sseC4Edge0 = _mm_set_ps1(ee0.z);
+
+                        // Store edge 1 equation coefficients
+                        __m128 sseA4Edge1 = _mm_set_ps1(ee1.x);
+                        __m128 sseB4Edge1 = _mm_set_ps1(ee1.y);
+                        __m128 sseC4Edge1 = _mm_set_ps1(ee1.z);
+
+                        // Store edge 2 equation coefficients
+                        __m128 sseA4Edge2 = _mm_set_ps1(ee2.x);
+                        __m128 sseB4Edge2 = _mm_set_ps1(ee2.y);
+                        __m128 sseC4Edge2 = _mm_set_ps1(ee2.z);
+
+                        const SIMDEdgeCoefficients simdEERegs =
+                        {
+                            sseA4Edge0,
+                            sseA4Edge1,
+                            sseA4Edge2,
+                            sseB4Edge0,
+                            sseB4Edge1,
+                            sseB4Edge2,
+                            sseC4Edge0,
+                            sseC4Edge1,
+                            sseC4Edge2,
+                        };
 
                         switch (pMask->m_Type)
                         {
                         case CoverageMaskType::TILE:
                             LOG("Thread %d fragment-shading tile %d\n", m_ThreadIdx, nextTileIdx);
-                            FragmentShadeTile(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx, ee0, ee1, ee2);
+                            FragmentShadeTile(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx, simdEERegs);
                             break;
                         case CoverageMaskType::BLOCK:
                             LOG("Thread %d fragment-shading blocks\n", m_ThreadIdx);
-                            FragmentShadeBlock(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx, ee0, ee1, ee2);
+                            FragmentShadeBlock(pMask->m_SampleX, pMask->m_SampleY, pMask->m_PrimIdx, simdEERegs);
                             break;
                         case CoverageMaskType::QUAD:
                             LOG("Thread %d fragment-shading coverage masks\n", m_ThreadIdx, ee0, ee1, ee2);
-                            FragmentShadeQuad(pMask, ee0, ee1, ee2);
+                            FragmentShadeQuad(pMask, simdEERegs);
                             break;
                         default:
                             ASSERT(false);
@@ -1124,7 +1152,7 @@ namespace tyler
         }
     }
 
-    void PipelineThread::FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2)
+    void PipelineThread::FragmentShadeTile(uint32_t tilePosX, uint32_t tilePosY, uint32_t primIdx, const SIMDEdgeCoefficients& simdEERegs)
     {
         const uint32_t numBlockInTile = m_RenderConfig.m_TileSize / g_scPixelBlockSize;
 
@@ -1136,35 +1164,18 @@ namespace tyler
                     tilePosX + px * g_scPixelBlockSize,
                     tilePosY + py * g_scPixelBlockSize,
                     primIdx,
-                    ee0,
-                    ee1,
-                    ee2);
+                    simdEERegs);
             }
         }
     }
 
-    void PipelineThread::FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2)
+    void PipelineThread::FragmentShadeBlock(uint32_t blockPosX, uint32_t blockPosY, uint32_t primIdx, const SIMDEdgeCoefficients& simdEERegs)
     {
         FragmentShader FS = m_pRenderEngine->m_FragmentShader;
         ASSERT(FS != nullptr);
 
         // Temp storage for interpolated vertex attributes
         InterpolatedAttributes interpolatedAttribs;
-
-        // Store EE coefficients
-        __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
-        __m128 sseB4Edge0 = _mm_set_ps1(ee0.y);
-        __m128 sseC4Edge0 = _mm_set_ps1(ee0.z);
-
-        // Store edge 1 equation coefficients
-        __m128 sseA4Edge1 = _mm_set_ps1(ee1.x);
-        __m128 sseB4Edge1 = _mm_set_ps1(ee1.y);
-        __m128 sseC4Edge1 = _mm_set_ps1(ee1.z);
-
-        // Store edge 2 equation coefficients
-        __m128 sseA4Edge2 = _mm_set_ps1(ee2.x);
-        __m128 sseB4Edge2 = _mm_set_ps1(ee2.y);
-        __m128 sseC4Edge2 = _mm_set_ps1(ee2.z);
 
         // Parameter interpolation basis functions
         __m128 ssef0XY, ssef1XY;
@@ -1184,15 +1195,7 @@ namespace tyler
                 ComputeParameterBasisFunctions(
                     sampleX,
                     sampleY,
-                    sseA4Edge0,
-                    sseB4Edge0,
-                    sseC4Edge0,
-                    sseA4Edge1,
-                    sseB4Edge1,
-                    sseC4Edge1,
-                    sseA4Edge2,
-                    sseB4Edge2,
-                    sseC4Edge2,
+                    simdEERegs,
                     &ssef0XY,
                     &ssef1XY);
 
@@ -1229,7 +1232,7 @@ namespace tyler
         }
     }
 
-    void PipelineThread::FragmentShadeQuad(CoverageMask* pMask, const glm::vec3& ee0, const glm::vec3& ee1, const glm::vec3& ee2)
+    void PipelineThread::FragmentShadeQuad(CoverageMask* pMask, const SIMDEdgeCoefficients& simdEERegs)
     {
         ASSERT(pMask != nullptr);
 
@@ -1242,34 +1245,11 @@ namespace tyler
         // Parameter interpolation basis functions
         __m128 ssef0XY, ssef1XY;
 
-        // Store edge 0 equation coefficients
-        __m128 sseA4Edge0 = _mm_set_ps1(ee0.x);
-        __m128 sseB4Edge0 = _mm_set_ps1(ee0.y);
-        __m128 sseC4Edge0 = _mm_set_ps1(ee0.z);
-
-        // Store edge 1 equation coefficients
-        __m128 sseA4Edge1 = _mm_set_ps1(ee1.x);
-        __m128 sseB4Edge1 = _mm_set_ps1(ee1.y);
-        __m128 sseC4Edge1 = _mm_set_ps1(ee1.z);
-
-        // Store edge 2 equation coefficients
-        __m128 sseA4Edge2 = _mm_set_ps1(ee2.x);
-        __m128 sseB4Edge2 = _mm_set_ps1(ee2.y);
-        __m128 sseC4Edge2 = _mm_set_ps1(ee2.z);
-
         // Calculate basis functions f0(x,y) & f1(x,y) once
         ComputeParameterBasisFunctions(
             pMask->m_SampleX,
             pMask->m_SampleY,
-            sseA4Edge0,
-            sseB4Edge0,
-            sseC4Edge0,
-            sseA4Edge1,
-            sseB4Edge1,
-            sseC4Edge1,
-            sseA4Edge2,
-            sseB4Edge2,
-            sseC4Edge2,
+            simdEERegs,            
             &ssef0XY,
             &ssef1XY);
 
@@ -1390,15 +1370,7 @@ namespace tyler
     void PipelineThread::ComputeParameterBasisFunctions(
         uint32_t sampleX,
         uint32_t sampleY,
-        const __m128& sseA4Edge0,
-        const __m128& sseB4Edge0,
-        const __m128& sseC4Edge0,
-        const __m128& sseA4Edge1,
-        const __m128& sseB4Edge1,
-        const __m128& sseC4Edge1,
-        const __m128& sseA4Edge2,
-        const __m128& sseB4Edge2,
-        const __m128& sseC4Edge2,
+        const SIMDEdgeCoefficients& simdEERegs,
         __m128* pSSEf0XY,
         __m128* pSSEf1XY)
     {
@@ -1418,22 +1390,22 @@ namespace tyler
         __m128 sseY4 = _mm_set_ps1(sampleY); // y y y y
 
         // Compute F0(x,y)
-        __m128 sseF0XY4 = _mm_add_ps(sseC4Edge0,
+        __m128 sseF0XY4 = _mm_add_ps(simdEERegs.m_SSEC4Edge0,
             _mm_add_ps(
-                _mm_mul_ps(sseY4, sseB4Edge0),
-                _mm_mul_ps(sseX4, sseA4Edge0)));
+                _mm_mul_ps(sseY4, simdEERegs.m_SSEB4Edge0),
+                _mm_mul_ps(sseX4, simdEERegs.m_SSEA4Edge0)));
 
         // Compute F1(x,y)
-        __m128 sseF1XY4 = _mm_add_ps(sseC4Edge1,
+        __m128 sseF1XY4 = _mm_add_ps(simdEERegs.m_SSEC4Edge1,
             _mm_add_ps(
-                _mm_mul_ps(sseY4, sseB4Edge1),
-                _mm_mul_ps(sseX4, sseA4Edge1)));
+                _mm_mul_ps(sseY4, simdEERegs.m_SSEB4Edge1),
+                _mm_mul_ps(sseX4, simdEERegs.m_SSEA4Edge1)));
 
         // Compute F2(x,y)
-        __m128 sseF2XY4 = _mm_add_ps(sseC4Edge2,
+        __m128 sseF2XY4 = _mm_add_ps(simdEERegs.m_SSEC4Edge2,
             _mm_add_ps(
-                _mm_mul_ps(sseY4, sseB4Edge2),
-                _mm_mul_ps(sseX4, sseA4Edge2)));
+                _mm_mul_ps(sseY4, simdEERegs.m_SSEB4Edge2),
+                _mm_mul_ps(sseX4, simdEERegs.m_SSEA4Edge2)));
 
         // Compute F(x,y) = F0(x,y) + F1(x,y) + F2(x,y)
         __m128 sseR4 = _mm_add_ps(sseF2XY4, _mm_add_ps(sseF0XY4, sseF1XY4));
