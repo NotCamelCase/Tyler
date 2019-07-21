@@ -182,7 +182,7 @@ namespace tyler
         }
     }
 
-    void RenderEngine::DrawIndexed(uint32_t indexCount, uint32_t vertexOffset)
+    void RenderEngine::Draw(uint32_t primCount, uint32_t vertexOffset, bool isIndexed)
     {
         // Prepare for next drawcall
         ApplyPreDrawcallStateInvalidations();
@@ -190,11 +190,7 @@ namespace tyler
         // Pipeline threads must have been allocated!
         ASSERT(m_PipelineThreads.size() == m_RenderConfig.m_NumPipelineThreads);
 
-        // Only primitive topology type == TRIANGLE
-        ASSERT((indexCount % 3) == 0);
-
-        uint32_t numTotalPrims = indexCount / 3;
-        uint32_t numRemainingPrims = numTotalPrims;
+        uint32_t numRemainingPrims = primCount;
 
         uint32_t drawElemsPrev = 0u;
         uint32_t numIter = 0;
@@ -217,7 +213,7 @@ namespace tyler
                     (currentDrawElemsStart + primsPerThread + perIterationRemainder) :
                     currentDrawElemsStart + primsPerThread;
 
-                ASSERT(currentDrawElemsEnd <= numTotalPrims);
+                ASSERT(currentDrawElemsEnd <= primCount);
 
                 // Threads must have been initialized and idle by now!
                 PipelineThread* pThread = m_PipelineThreads[threadIdx];
@@ -227,6 +223,7 @@ namespace tyler
                 pThread->m_ActiveDrawParams.m_ElemsStart = currentDrawElemsStart;
                 pThread->m_ActiveDrawParams.m_ElemsEnd = currentDrawElemsEnd;
                 pThread->m_ActiveDrawParams.m_VertexOffset = vertexOffset;
+                pThread->m_ActiveDrawParams.m_IsIndexed = isIndexed;
 
                 LOG("Thread %d drawparams for iteration %d: (%d, %d)\n", threadIdx, numIter, currentDrawElemsStart, currentDrawElemsEnd);
 

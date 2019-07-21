@@ -32,9 +32,11 @@ namespace tyler
         void Run();
 
         // Process received drawcall input
+        template<bool IsIndexed>
         void ProcessDrawcall();
 
         // Vertex Shader
+        template<bool IsIndexed>
         void ExecuteVertexShader(uint32_t drawIdx, uint32_t primIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip);
 
         // Clipper (full-triangle only)
@@ -142,6 +144,8 @@ namespace tyler
             uint32_t                m_ElemsEnd = 0u;
             // Vertex offset to be added to base vertex index
             uint32_t                m_VertexOffset = 0u;
+            // Drawcall is indexed or not
+            bool                    m_IsIndexed = false;
         }                           m_ActiveDrawParams;
     };
 }

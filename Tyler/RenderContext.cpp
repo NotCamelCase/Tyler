@@ -81,9 +81,18 @@ namespace tyler
 
     void RenderContext::DrawIndexed(uint32_t indexCount, uint32_t vertexOffset)
     {
-        //TODO: Non-indexed draw?!
+        // Only primitive topology type == TRIANGLE
+        ASSERT((indexCount % 3) == 0);
 
-        m_pRenderEngine->DrawIndexed(indexCount, vertexOffset);
+        m_pRenderEngine->Draw(indexCount / 3, vertexOffset, true /*isIndexed*/);
+    }
+
+    void RenderContext::Draw(uint32_t vertexCount, uint32_t vertexOffset)
+    {
+        // Only primitive topology type == TRIANGLE
+        ASSERT((vertexCount % 3) == 0);
+
+        m_pRenderEngine->Draw(vertexCount, vertexOffset, false /*isIndexed*/);
     }
 
     void RenderContext::EndRenderPass()

@@ -38,7 +38,7 @@ namespace tyler
         void SetRenderTargets(Framebuffer* pFramebuffer);
 
         // Draw the object by using bound pipeline states
-        void DrawIndexed(uint32_t indexCount, uint32_t vertexOffset);
+        void Draw(uint32_t primCount, uint32_t vertexOffset, bool isIndexed);
 
         // Perform necessary state/data invalidations for drawcalls and draw iterations
         void ApplyPreDrawcallStateInvalidations();

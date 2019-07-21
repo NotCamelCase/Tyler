@@ -30,11 +30,19 @@ namespace tyler
             if (m_CurrentState.load(std::memory_order_relaxed) == ThreadStatus::DRAWCALL_TOP)
             {
                 // Drawcall received, switch to processing it
-                ProcessDrawcall();
+                if (m_ActiveDrawParams.m_IsIndexed)
+                {
+                    ProcessDrawcall<true>();
+                }
+                else
+                {
+                    ProcessDrawcall<false>();
+                }
             }
         }
     }
 
+    template<bool IsIndexed>
     void PipelineThread::ProcessDrawcall()
     {
         LOG("Thread %d drawcall processing begins\n", m_ThreadIdx);
@@ -56,7 +64,7 @@ namespace tyler
             glm::vec4 v0Clip, v1Clip, v2Clip;
 
             // VS
-            ExecuteVertexShader(drawIdx, primIdx, &v0Clip, &v1Clip, &v2Clip);
+            ExecuteVertexShader<IsIndexed>(drawIdx, primIdx, &v0Clip, &v1Clip, &v2Clip);
 
             // Bbox of the primitive which will be computed during clipping
             Rect2D bbox;
@@ -128,11 +136,12 @@ namespace tyler
         m_CurrentState.store(ThreadStatus::DRAWCALL_BOTTOM, std::memory_order_relaxed);
     }
 
+    template<bool IsIndexed>
     void PipelineThread::ExecuteVertexShader(uint32_t drawIdx, uint32_t primIdx, glm::vec4* pV0Clip, glm::vec4* pV1Clip, glm::vec4* pV2Clip)
     {
         uint8_t* pVertexBuffer = static_cast<uint8_t*>(m_pRenderEngine->m_pVertexBuffer);
         IndexBuffer* pIndexBuffer = m_pRenderEngine->m_pIndexBuffer;
-        ASSERT((pVertexBuffer != nullptr) && (pIndexBuffer != nullptr)); //TODO: Non-indexed DC!
+        ASSERT((pVertexBuffer != nullptr) && (!IsIndexed || (pIndexBuffer != nullptr)));
 
         ConstantBuffer* pConstantBuffer = m_pRenderEngine->m_pConstantBuffer;
 
@@ -146,21 +155,7 @@ namespace tyler
         VertexShader VS = m_pRenderEngine->m_VertexShader;
         ASSERT(VS != nullptr);
 
-        if constexpr (!g_scVertexShaderCacheEnabled)
-        {
-            // VS$ disabled, don't look up vertices in the cache
-
-            // Fetch pointers to vertex input that'll be passed to vertex shader
-            uint8_t* pVertIn0 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 0)]];
-            uint8_t* pVertIn1 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 1)]];
-            uint8_t* pVertIn2 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 2)]];
-
-            // Invoke vertex shader with vertex attributes payload
-            *pV0Clip = VS(pVertIn0, pTempVertexAttrib0, pConstantBuffer);
-            *pV1Clip = VS(pVertIn1, pTempVertexAttrib1, pConstantBuffer);
-            *pV2Clip = VS(pVertIn2, pTempVertexAttrib2, pConstantBuffer);
-        }
-        else
+        if constexpr (g_scVertexShaderCacheEnabled && IsIndexed)
         {
             uint32_t cacheEntry0 = UINT32_MAX;
             uint32_t cacheEntry1 = UINT32_MAX;
@@ -217,6 +212,32 @@ namespace tyler
 
                 CacheVertexData(vertexIdx0, *pV2Clip, *pTempVertexAttrib2);
             }
+        }
+        else if (IsIndexed)
+        {
+            // VS$ disabled, don't look up vertices in the cache
+
+            // Fetch pointers to vertex input that'll be passed to vertex shader
+            uint8_t* pVertIn0 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 0)]];
+            uint8_t* pVertIn1 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 1)]];
+            uint8_t* pVertIn2 = &pVertexBuffer[vertexStride * pIndexBuffer[vertexOffset + (3 * drawIdx + 2)]];
+
+            // Invoke vertex shader with vertex attributes payload
+            *pV0Clip = VS(pVertIn0, pTempVertexAttrib0, pConstantBuffer);
+            *pV1Clip = VS(pVertIn1, pTempVertexAttrib1, pConstantBuffer);
+            *pV2Clip = VS(pVertIn2, pTempVertexAttrib2, pConstantBuffer);
+        }
+        else
+        {
+            // Fetch pointers to vertex input that'll be passed to vertex shader
+            uint8_t* pVertIn0 = &pVertexBuffer[vertexOffset + vertexStride * (3 * drawIdx + 0)];
+            uint8_t* pVertIn1 = &pVertexBuffer[vertexOffset + vertexStride * (3 * drawIdx + 1)];
+            uint8_t* pVertIn2 = &pVertexBuffer[vertexOffset + vertexStride * (3 * drawIdx + 2)];
+
+            // Invoke vertex shader with vertex attributes payload
+            *pV0Clip = VS(pVertIn0, pTempVertexAttrib0, pConstantBuffer);
+            *pV1Clip = VS(pVertIn1, pTempVertexAttrib1, pConstantBuffer);
+            *pV2Clip = VS(pVertIn2, pTempVertexAttrib2, pConstantBuffer);
         }
 
         // Calculate interpolation data for active vertex attributes

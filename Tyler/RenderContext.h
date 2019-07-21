@@ -37,7 +37,7 @@ namespace tyler
 
         // Drawcalls
         void DrawIndexed(uint32_t indexCount, uint32_t vertexOffset);
-        void Draw(uint32_t vertexCount) { /*TODO*/ }
+        void Draw(uint32_t vertexCount, uint32_t vertexOffset);
 
         void EndRenderPass();
 
