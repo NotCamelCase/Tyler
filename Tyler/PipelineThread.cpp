@@ -29,6 +29,11 @@ namespace tyler
         {
             if (m_CurrentState.load(std::memory_order_relaxed) == ThreadStatus::DRAWCALL_TOP)
             {
+                while (!m_pRenderEngine->m_DrawcallSetupComplete)
+                {
+                    // Don't start processing a drawcall until all threads have draw parameters assigned
+                }
+
                 // Drawcall received, switch to processing it
                 if (m_ActiveDrawParams.m_IsIndexed)
                 {
@@ -46,6 +51,8 @@ namespace tyler
     void PipelineThread::ProcessDrawcall()
     {
         LOG("Thread %d drawcall processing begins\n", m_ThreadIdx);
+
+        ASSERT(m_pRenderEngine->m_DrawcallSetupComplete.load());
 
         // Drawcall starts with geometry processing
         m_CurrentState.store(ThreadStatus::DRAWCALL_GEOMETRY, std::memory_order_relaxed);
@@ -168,7 +175,7 @@ namespace tyler
             if (PerformVertexCacheLookup(vertexIdx0, &cacheEntry0))
             {
                 // Vertex 0 is found in the cache, skip VS and fetch cached data
-                CopyVertexData(pV0Clip, cacheEntry0, pTempVertexAttrib0);
+                CopyVertexData(cacheEntry0, pV0Clip, pTempVertexAttrib0);
             }
             else
             {
@@ -184,7 +191,7 @@ namespace tyler
             if (PerformVertexCacheLookup(vertexIdx1, &cacheEntry1))
             {
                 // Vertex 1 is found in the cache, skip VS and fetch cached data
-                CopyVertexData(pV1Clip, cacheEntry1, pTempVertexAttrib1);
+                CopyVertexData(cacheEntry1, pV1Clip, pTempVertexAttrib1);
             }
             else
             {
@@ -200,7 +207,7 @@ namespace tyler
             if (PerformVertexCacheLookup(vertexIdx2, &cacheEntry2))
             {
                 // Vertex 2 is found in the cache, skip VS and fetch cached data
-                CopyVertexData(pV2Clip, cacheEntry2, pTempVertexAttrib2);
+                CopyVertexData(cacheEntry2, pV2Clip, pTempVertexAttrib2);
             }
             else
             {
@@ -244,8 +251,10 @@ namespace tyler
         CalculateInterpolationCoefficients(primIdx, *pTempVertexAttrib0, *pTempVertexAttrib1, *pTempVertexAttrib2);
     }
 
-    void PipelineThread::CopyVertexData(glm::vec4* pVClip, uint32_t cacheEntry, VertexAttributes* pTempVertexAttrib)
+    void PipelineThread::CopyVertexData(uint32_t cacheEntry, glm::vec4* pVClip, VertexAttributes* pTempVertexAttrib)
     {
+        ASSERT((pVClip != nullptr) && (pTempVertexAttrib != nullptr));
+
         // Copy cached clip-space positions
         *pVClip = m_VertexCacheEntries[cacheEntry].m_ClipPos;
 

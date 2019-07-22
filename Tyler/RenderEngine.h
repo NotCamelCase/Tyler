@@ -118,6 +118,9 @@ namespace tyler
         // PipelineThreads will run concurrently to implement the pipeline stages
         std::vector<PipelineThread*>                    m_PipelineThreads;
 
+        // Used to synchronize for all threads to enter the pipeline at the same time
+        std::atomic<bool>                               m_DrawcallSetupComplete;
+
         // Array of tiles that'll be allocated based on screen resolution and fixed tile size
         std::vector<Tile>                               m_TileList;
 

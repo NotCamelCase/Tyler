@@ -6,7 +6,8 @@ namespace tyler
 {
     RenderEngine::RenderEngine(const RasterizerConfig& renderConfig)
         :
-        m_RenderConfig(renderConfig)
+        m_RenderConfig(renderConfig),
+        m_DrawcallSetupComplete(false)
     {
         // Allocate triangle setup data big enough to hold all possible in-flight primitives
         m_SetupBuffers.m_pEdgeCoefficients = new glm::vec3[m_RenderConfig.m_MaxDrawIterationSize * 3 /* 3 vertices */];
@@ -234,6 +235,9 @@ namespace tyler
                 numRemainingPrims -= (currentDrawElemsEnd - currentDrawElemsStart);
             }
 
+            // All threads are assigned draw parameters, let them work now
+            m_DrawcallSetupComplete.store(true, std::memory_order_release);
+
             // Stall main thread until all active threads complete given draw iteration
             WaitForPipelineThreadsToCompleteProcessingDrawcall();
 
@@ -301,6 +305,9 @@ namespace tyler
 
         // Reset rasterizer queue
         m_RasterizerQueue.ResetQueue();
+
+        // Clear drawcall setup flag
+        m_DrawcallSetupComplete.store(false, std::memory_order_relaxed);
 
 #ifdef _DEBUG
         // Clear per-thread drawparams for debug

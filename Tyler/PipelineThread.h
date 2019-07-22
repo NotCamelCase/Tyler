@@ -27,6 +27,7 @@ namespace tyler
     // Thread execution state
     enum class ThreadStatus : uint8_t
     {
+        IDLE,                               // Waiting for input arrival by RenderEngine
         DRAWCALL_TOP,                       // Input data received, start processing drawcall
         DRAWCALL_GEOMETRY,                  // Geometry processing in progress
         DRAWCALL_BINNING,                   // Binning in progress
@@ -35,8 +36,7 @@ namespace tyler
         DRAWCALL_SYNC_POINT_POST_RASTER,    // Sync post rasterization
         DRAWCALL_FRAGMENTSHADER,            // Fragment processing in progress
         DRAWCALL_BOTTOM,                    // Drawcall processed
-        TERMINATED,                         // Thread shut down requested
-        IDLE                                // Waiting for input arrival by RenderEngine
+        TERMINATED                          // Thread shut down requested
     };
 
     struct PipelineThread
@@ -122,7 +122,7 @@ namespace tyler
         // Utilities for VS$
         bool PerformVertexCacheLookup(uint32_t primIdx, uint32_t* pCachedIdx);
         void CacheVertexData(uint32_t vertexIdx, const glm::vec4& vClip, const tyler::VertexAttributes& tempVertexAttrib);
-        void CopyVertexData(glm::vec4* pVClip, uint32_t cacheEntry, VertexAttributes* pTempVertexAttrib);
+        void CopyVertexData(uint32_t cacheEntry, glm::vec4* pVClip, VertexAttributes* pTempVertexAttrib);
 
         // Unique RenderEngine instance
         RenderEngine*               m_pRenderEngine = nullptr;
