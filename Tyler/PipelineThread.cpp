@@ -29,7 +29,7 @@ namespace tyler
         {
             if (m_CurrentState.load(std::memory_order_relaxed) == ThreadStatus::DRAWCALL_TOP)
             {
-                while (!m_pRenderEngine->m_DrawcallSetupComplete)
+                while (!m_pRenderEngine->m_DrawcallSetupComplete.load(std::memory_order_relaxed))
                 {
                     // Don't start processing a drawcall until all threads have draw parameters assigned
                 }
@@ -569,10 +569,6 @@ namespace tyler
         ASSERT((bbox.m_MinX >= 0.f) && (bbox.m_MaxX >= 0.f) && (bbox.m_MinY >= 0.f) && (bbox.m_MaxY >= 0.f));
         ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
 
-        const bool isBboxSmallerThanTile =
-            ((bbox.m_MaxX - bbox.m_MinX) < m_RenderConfig.m_TileSize) &&
-            ((bbox.m_MaxY - bbox.m_MinY) < m_RenderConfig.m_TileSize);
-
         // Given a tile size and frame buffer dimensions, find min/max range of the tiles that fall within bbox computed above
         // which we're going to iterate over, in order to determine if the primitive should be binned or not
 
@@ -593,9 +589,9 @@ namespace tyler
         glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
 
         // Normalize edge functions
-        ee0 = ee0 / (glm::abs(ee0.x) + glm::abs(ee0.y));
-        ee1 = ee1 / (glm::abs(ee1.x) + glm::abs(ee1.y));
-        ee2 = ee2 / (glm::abs(ee2.x) + glm::abs(ee2.y));
+        ee0 /= (glm::abs(ee0.x) + glm::abs(ee0.y));
+        ee1 /= (glm::abs(ee1.x) + glm::abs(ee1.y));
+        ee2 /= (glm::abs(ee2.x) + glm::abs(ee2.y));
 
         // Indices of tile corners:
         // LL -> 0  LR -> 1
@@ -683,8 +679,7 @@ namespace tyler
                     bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
                     bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
                     bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
-                    if (!isBboxSmallerThanTile &&
-                        (TAForEdge0 && TAForEdge1 && TAForEdge2))
+                    if (TAForEdge0 && TAForEdge1 && TAForEdge2)
                     {
                         // TrivialAccept
                         // Tile is completely inside of the triangle, no further rasterization is needed,
@@ -767,10 +762,6 @@ namespace tyler
                     // In case bbox is screwed up after clamping to the tile edges
                     ASSERT((bbox.m_MinX <= bbox.m_MaxX) && (bbox.m_MinY <= bbox.m_MaxY));
 
-                    const bool isBboxSmallerThanBlock =
-                        ((bbox.m_MaxX - bbox.m_MinX) < g_scPixelBlockSize) &&
-                        ((bbox.m_MaxY - bbox.m_MinY) < g_scPixelBlockSize);
-
                     // Given a fixed 8x8 block and tile size, find min/max range of the blocks that fall within bbox computed above
                     // which we're going to iterate over, in order to determine how blocks within tile are to be rasterized
 
@@ -791,9 +782,9 @@ namespace tyler
                     glm::vec3 ee2 = m_pRenderEngine->m_SetupBuffers.m_pEdgeCoefficients[3 * primIdx + 2];
 
                     // Normalize edge functions
-                    ee0 = ee0 / (glm::abs(ee0.x) + glm::abs(ee0.y));
-                    ee1 = ee1 / (glm::abs(ee1.x) + glm::abs(ee1.y));
-                    ee2 = ee2 / (glm::abs(ee2.x) + glm::abs(ee2.y));
+                    ee0 /= (glm::abs(ee0.x) + glm::abs(ee0.y));
+                    ee1 /= (glm::abs(ee1.x) + glm::abs(ee1.y));
+                    ee2 /= (glm::abs(ee2.x) + glm::abs(ee2.y));
 
                     static constexpr glm::vec2 scBlockCornerOffsets[] =
                     {
@@ -871,8 +862,7 @@ namespace tyler
                                 bool TAForEdge0 = (edgeFuncTA0 >= 0.f);
                                 bool TAForEdge1 = (edgeFuncTA1 >= 0.f);
                                 bool TAForEdge2 = (edgeFuncTA2 >= 0.f);
-                                if (!isBboxSmallerThanBlock &&
-                                    (TAForEdge0 && TAForEdge1 && TAForEdge2))
+                                if (TAForEdge0 && TAForEdge1 && TAForEdge2)
                                 {
                                     // TrivialAccept
                                     // Block is completely inside of the triangle, emit a full-block coverage mask
