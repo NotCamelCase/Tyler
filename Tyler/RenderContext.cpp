@@ -92,7 +92,7 @@ namespace tyler
         // Only primitive topology type == TRIANGLE
         ASSERT((vertexCount % 3) == 0);
 
-        m_pRenderEngine->Draw(vertexCount, vertexOffset, false /*isIndexed*/);
+        m_pRenderEngine->Draw(vertexCount / 3, vertexOffset, false /*isIndexed*/);
     }
 
     void RenderContext::EndRenderPass()
