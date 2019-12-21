@@ -62,7 +62,7 @@ namespace tyler
         bool ExecuteTriangleSetupAndCull(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip);
 
         // Binner
-        void ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, const Rect2D& bbox);
+        void ExecuteBinner(uint32_t primIdx, const Rect2D& bbox);
 
         // Rasterizer
         void ExecuteRasterizer();

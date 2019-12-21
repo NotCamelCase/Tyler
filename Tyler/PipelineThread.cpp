@@ -557,7 +557,7 @@ namespace tyler
         return detM > 0.f;
     }
 
-    void PipelineThread::ExecuteBinner(uint32_t primIdx, const glm::vec4& v0Clip, const glm::vec4& v1Clip, const glm::vec4& v2Clip, const Rect2D& bbox)
+    void PipelineThread::ExecuteBinner(uint32_t primIdx, const Rect2D& bbox)
     {
         LOG("Thread %d binning prim %d\n", m_ThreadIdx, primIdx);
 
@@ -1479,9 +1479,9 @@ namespace tyler
                 _mm_add_ps(_mm_mul_ps(sseAttrib1Z, ssef1XY), sseAttrib2Z));
 
             // vec4::w attribute to be interpolated
-            __m128 sseAttrib0W = _mm_set_ps1(attrib2Vec3.x);
-            __m128 sseAttrib1W = _mm_set_ps1(attrib2Vec3.y);
-            __m128 sseAttrib2W = _mm_set_ps1(attrib2Vec3.z);
+            __m128 sseAttrib0W = _mm_set_ps1(attrib3Vec3.x);
+            __m128 sseAttrib1W = _mm_set_ps1(attrib3Vec3.y);
+            __m128 sseAttrib2W = _mm_set_ps1(attrib3Vec3.z);
 
             __m128 sseVec3AttribW = _mm_add_ps(
                 _mm_mul_ps(sseAttrib0W, ssef0XY),
