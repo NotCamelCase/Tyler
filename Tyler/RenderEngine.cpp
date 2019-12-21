@@ -335,6 +335,8 @@ namespace tyler
             }
 
             drawcallComplete = threadComplete;
+
+            std::this_thread::yield();
         }
 
         // All threads finished drawcall processing, set their states to IDLE before next iteration
@@ -367,6 +369,8 @@ namespace tyler
             }
 
             binningComplete = threadsComplete;
+
+            std::this_thread::yield();
         }
     }
 
@@ -390,6 +394,8 @@ namespace tyler
             }
 
             rasterComplete = threadsComplete;
+
+            std::this_thread::yield();
         }
     }
 

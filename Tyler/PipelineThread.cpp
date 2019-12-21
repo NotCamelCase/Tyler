@@ -44,6 +44,8 @@ namespace tyler
                     ProcessDrawcall<false>();
                 }
             }
+
+            std::this_thread::yield();
         }
     }
 

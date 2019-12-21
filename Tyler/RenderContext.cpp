@@ -12,7 +12,7 @@ namespace tyler
         if (m_Config.m_NumPipelineThreads == 0u)
         {
             // Set # of threads to HW threads, if param not provided
-            m_Config.m_NumPipelineThreads = std::thread::hardware_concurrency() - 1;
+            m_Config.m_NumPipelineThreads = std::thread::hardware_concurrency();
         }
     }
 
